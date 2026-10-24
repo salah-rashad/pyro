@@ -4,7 +4,14 @@
 // two reloads). Rerun on each Flutter release (project plan §13).
 //
 // Usage, from apps/editor, with the game not already running:
-//   dart run benchmark/hot_swap_latency.dart [project]   (default ../../example)
+//   dart run benchmark/hot_swap_latency.dart [project] [--with-attach]
+//   (default project ../../example)
+//
+// The game always runs through a run link and every Scene save re-points the
+// engine's assets first (spec 007, research R2, R5). With --with-attach a
+// `flutter attach -d macos --debug-uri <address>` stand-in IDE stays attached
+// the whole time (it makes the same DevFS clash as VS Code, spike #1
+// finding 2); the address is read from the session and never printed.
 //
 // It drives `example/`: it rewrites assets/scenes/level1.scene.json and
 // lib/code_marker.dart, restores both when it ends, and waits for the
@@ -13,6 +20,7 @@
 // prints once the swap is done; the frame that shows it follows within
 // 16 ms. Prints a Markdown table and exits 1 if a criterion fails.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:pyro/process/process.dart';
@@ -24,8 +32,10 @@ const _loaded = '[pyro_example] Scene loaded';
 const _shipPosition = '"position": [400, 300]';
 
 Future<void> main(List<String> args) async {
+  final withAttach = args.contains('--with-attach');
+  final paths = args.where((a) => !a.startsWith('--')).toList();
   final project = Directory(
-    args.isEmpty ? '../../example' : args.first,
+    paths.isEmpty ? '../../example' : paths.first,
   ).absolute.path;
   final scene = File('$project/$_scene');
   final marker = File('$project/$_marker');
@@ -38,8 +48,15 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
-  final session = await PlayClient().start(project);
+  final support = Directory.systemTemp.createTempSync('pyro_latency_support_');
+  final link = await RunLink.create(project, supportDir: support.path);
+  if (link == null) {
+    stderr.writeln('The run link could not be made.');
+    exit(1);
+  }
+  final session = await PlayClient().start(project, runLink: link);
   final events = session.events.asBroadcastStream();
+  Process? attach;
   final rows = <List<String>>[];
   var ok = true;
   try {
@@ -55,6 +72,29 @@ Future<void> main(List<String> args) async {
     ]).timeout(const Duration(minutes: 10));
     if (ready.contains(false)) {
       throw StateError('the game stopped before loading its Scene');
+    }
+
+    if (withAttach) {
+      attach = await Process.start('flutter', [
+        'attach',
+        '-d',
+        'macos',
+        '--debug-uri',
+        session.debuggerAddress!,
+      ]);
+      final attached = Completer<void>();
+      attach.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .listen((line) {
+            if (line.contains('Flutter run key commands') &&
+                !attached.isCompleted) {
+              attached.complete();
+            }
+          });
+      unawaited(attach.stderr.drain<void>());
+      await attached.future.timeout(const Duration(minutes: 2));
+      rows.add(['An IDE stand-in is attached', 'yes', '', '']);
     }
 
     // SC-004: ten changed saves, each timed to the game's reload line.
@@ -152,7 +192,10 @@ Future<void> main(List<String> args) async {
   } finally {
     _writeAtomically(scene, sceneText);
     marker.writeAsStringSync(markerText);
+    attach?.kill();
     await session.stop();
+    await link.remove();
+    support.deleteSync(recursive: true);
   }
 
   stdout

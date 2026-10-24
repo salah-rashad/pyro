@@ -387,8 +387,10 @@ final class PlaySession {
       await vm.setAssetBundlePath(
         viewId: view.id,
         isolateId: view.isolateId,
-        assetDirectory:
-            '${base.endsWith('/') ? base : '$base/'}build/flutter_assets',
+        // A file path, not a URI: Flutter's own tool sends `toFilePath()`.
+        assetDirectory: Uri.parse(
+          base.endsWith('/') ? base : '$base/',
+        ).resolve('build/flutter_assets').toFilePath(),
       );
       return view;
     } on VmServiceCallFailed {

@@ -544,7 +544,10 @@ void main() {
     final baseUri = RegExp(
       r'"baseUri":"([^"]*)"',
     ).firstMatch(transcript('start.txt').join('\n'))!.group(1)!;
-    final assets = '${baseUri}build/flutter_assets';
+    // The engine takes a file path, not a URI.
+    final assets = Uri.parse(
+      baseUri,
+    ).resolve('build/flutter_assets').toFilePath();
     const sceneAsset = 'assets/scenes/level1.scene.json';
 
     test('spawns with --project-root, in the real project, with no target', () {
@@ -716,6 +719,29 @@ void main() {
         expect(h.events.whereType<PlayFailed>(), isEmpty);
         expect(h.session.state, PlayState.running);
         expect(h.events.length, before);
+      });
+    });
+  });
+
+  group('the recorded run with an IDE attached', () {
+    test('a hot restart by the IDE is not a stop and prints no auth code', () {
+      fakeAsync((async) {
+        final h = Harness(async)..start(link: true);
+        h.process.queueLines(recorded('ide-attached.txt'));
+        // Everything up to the daemon's own `Application finished.`.
+        h.process.emitUntil((line) => line.contains('pyro] Scene reloaded'));
+        h.process.emitUntil((line) => line.contains('"id":3'));
+        async.flushMicrotasks();
+        expect(h.session.state, PlayState.running);
+        expect(h.events.whereType<PlayStopped>(), isEmpty);
+        expect(h.events.whereType<PlayFailed>(), isEmpty);
+        for (final event in h.events) {
+          expect('$event', isNot(contains('ws://')));
+        }
+        h.process.emitAll();
+        h.process.exit(0);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.events.whereType<PlayStopped>(), hasLength(1));
       });
     });
   });
