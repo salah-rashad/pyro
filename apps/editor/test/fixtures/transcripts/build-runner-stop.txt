@@ -1,0 +1,6 @@
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+  0s pyro_generator:pyro_scan on 9 inputs: 9 skipped
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 skipped
+  Built with build_runner/aot in 0s; wrote 0 outputs.
+Exiting as requested by another build_runner process.
