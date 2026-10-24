@@ -237,7 +237,13 @@ void main() {
         h.replay('build-runner-stop.txt');
         h.spawns.last.exit(0);
         async.flushMicrotasks();
-        async.elapse(PlayDefaults.lockReprobe * 2);
+        async.elapse(PlayDefaults.takeoverWindow - const Duration(seconds: 1));
+        expect(
+          h.supervisor.state.status,
+          isNot(GeneratorStatus.stopped),
+          reason: 'it waits for a run that may still take the lock',
+        );
+        async.elapse(const Duration(seconds: 2));
         expect(h.supervisor.state.status, GeneratorStatus.stopped);
         expect(h.supervisor.state.ownedByPyro, isTrue);
         expect(h.spawns.processes, hasLength(1));
@@ -264,13 +270,31 @@ void main() {
       });
     });
 
+    test('a run that takes the lock late in the window is external', () {
+      fakeAsync((async) {
+        final h = started();
+        async.flushMicrotasks();
+        h.replay('build-runner-takeover.txt');
+        h.spawns.last.exit(0);
+        async.flushMicrotasks();
+        // The user's `build` took the lock 1.2 s after the exit.
+        async.elapse(const Duration(milliseconds: 1200));
+        expect(h.supervisor.state.status, isNot(GeneratorStatus.stopped));
+        h.probe.fallback = LockProbeResult.held;
+        async.elapse(PlayDefaults.takeoverPoll * 2);
+        expect(h.supervisor.state.status, GeneratorStatus.external);
+        unawaited(h.supervisor.dispose());
+        async.flushMicrotasks();
+      });
+    });
+
     test('Start restarts a stopped generator', () {
       fakeAsync((async) {
         final h = started();
         async.flushMicrotasks();
         h.replay('build-runner-stop.txt');
         h.spawns.last.exit(0);
-        async.elapse(PlayDefaults.lockReprobe * 2);
+        async.elapse(PlayDefaults.takeoverWindow * 2);
         expect(h.supervisor.state.status, GeneratorStatus.stopped);
         unawaited(h.supervisor.start());
         async.flushMicrotasks();
@@ -287,7 +311,7 @@ void main() {
         final h = started();
         async.flushMicrotasks();
         h.spawns.last.exit(0);
-        async.elapse(PlayDefaults.lockReprobe * 2);
+        async.elapse(PlayDefaults.takeoverWindow * 2);
         expect(h.supervisor.state.status, GeneratorStatus.stopped);
       });
     });

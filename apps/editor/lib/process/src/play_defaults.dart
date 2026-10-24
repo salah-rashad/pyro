@@ -24,6 +24,16 @@ abstract final class PlayDefaults {
   /// holds it (research R8).
   static const lockReprobe = Duration(seconds: 1);
 
+  /// How long, after Pyro's own `build_runner` exits because another run
+  /// asked it to, the lock is watched for that run before the exit counts
+  /// as `build_runner stop` (research R8). Measured: a `build` takes the
+  /// lock about 100 ms after the exit and holds it for the build; a `stop`
+  /// never does.
+  static const takeoverWindow = Duration(seconds: 2);
+
+  /// How often the lock is looked at during [takeoverWindow].
+  static const takeoverPoll = Duration(milliseconds: 100);
+
   /// How many lines the Console keeps; the oldest drops first (R12).
   static const consoleCapacity = 10000;
 

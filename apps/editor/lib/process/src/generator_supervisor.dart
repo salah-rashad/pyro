@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
+
 import 'build_lock.dart';
 import 'generator_output.dart';
 import 'generator_state.dart';
@@ -29,6 +31,8 @@ final class GeneratorSupervisor {
     this._probe = const BuildLockProbe(),
     this.reprobeEvery = PlayDefaults.lockReprobe,
     this.stopTimeout = PlayDefaults.stopTimeout,
+    this.takeoverWindow = PlayDefaults.takeoverWindow,
+    this.takeoverPoll = PlayDefaults.takeoverPoll,
   });
 
   /// The project whose generator this is.
@@ -45,6 +49,12 @@ final class GeneratorSupervisor {
 
   /// How long a stopping run gets before SIGKILL.
   final Duration stopTimeout;
+
+  /// How long a free lock is watched after a takeover exit.
+  final Duration takeoverWindow;
+
+  /// How often the lock is looked at in that window.
+  final Duration takeoverPoll;
 
   final ProcessStarter _startProcess;
   final BuildLockProbe _probe;
@@ -224,19 +234,22 @@ final class GeneratorSupervisor {
   }
 
   /// The takeover table: who holds the lock now decides what happened. A
-  /// free lock is looked at twice, one interval apart, because the run that
-  /// asked this one to exit may not have taken the lock yet.
+  /// free lock is watched for [PlayDefaults.takeoverWindow] first: the run
+  /// that asked this one to exit takes the lock a moment later if it builds
+  /// (`watch`, `build`), and never does if it only stops (`stop`).
   Future<void> _afterExit({required bool restartIfFree}) async {
     _starting = true;
     try {
       var lock = await _probe.check(projectPath);
-      if (_disposed) return;
-      if (lock != LockProbeResult.held) {
-        await Future<void>.delayed(reprobeEvery);
+      final window = clock.stopwatch()..start();
+      while (!restartIfFree &&
+          lock != LockProbeResult.held &&
+          window.elapsed < takeoverWindow) {
+        await Future<void>.delayed(takeoverPoll);
         if (_disposed) return;
         lock = await _probe.check(projectPath);
-        if (_disposed) return;
       }
+      if (_disposed) return;
       if (lock == LockProbeResult.held) {
         _goExternal();
       } else if (restartIfFree) {
