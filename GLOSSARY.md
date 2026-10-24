@@ -153,6 +153,10 @@ _Avoid_: log panel, output
 A symlink to the project under Pyro's application support, which the running game names its files by, so an IDE attached to the game cannot clash with Pyro's own copy. Pyro makes it when Play starts and removes it when the game stops; it never writes inside the project.
 _Avoid_: project link, shortcut
 
+**Debugger address**:
+The web address, with its authentication code, that an IDE uses to attach its debugger to the running game. It gives full control of the game, so Pyro keeps it in memory, copies it only when the developer presses Attach, and never writes it to the Console, a log or a file. Every run has its own.
+_Avoid_: debug URL, VM service URL
+
 **External build_runner**:
 A `build_runner` that Pyro did not start, such as one the developer runs in a terminal or an IDE. Pyro sees it only by its lock, shows "External build_runner", never stops it, and starts its own run again once the lock is free.
 _Avoid_: user generator, foreign build
