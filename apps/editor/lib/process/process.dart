@@ -17,7 +17,14 @@ export 'src/hot_swap_monitor.dart' show HotSwapMonitor;
 export 'src/play_block.dart' show PlayBlock;
 export 'src/play_client.dart' show PlayClient, ProcessStarter;
 export 'src/play_controller.dart'
-    show GameStopped, PlayController, PlayNotice, PlayPhase, PlayStarter;
+    show
+        GameStopped,
+        HotSwapFailed,
+        PlayController,
+        PlayNotice,
+        PlayPhase,
+        PlayStarter,
+        RunLinkMaker;
 export 'src/play_defaults.dart' show PlayDefaults;
 export 'src/play_event.dart'
     show

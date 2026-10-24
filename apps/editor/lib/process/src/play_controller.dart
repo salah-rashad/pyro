@@ -5,6 +5,7 @@ import 'console_line.dart';
 import 'play_block.dart';
 import 'play_event.dart';
 import 'play_session.dart';
+import 'run_link.dart';
 
 /// What the toolbar shows about the game (spec 007, data model "PlayPhase").
 /// A session's `reloading` shows as [running].
@@ -40,9 +41,24 @@ final class GameStopped extends PlayNotice {
   String toString() => 'Game stopped (exit $exitCode)';
 }
 
+/// Scene saves stopped reaching the game (FR-011); *Restart game* recovers.
+final class HotSwapFailed extends PlayNotice {
+  const HotSwapFailed(this.paths);
+
+  /// The Scenes of the last unreported save.
+  final Set<String> paths;
+
+  @override
+  String toString() => 'Hot-swap stopped working';
+}
+
 /// Starts a Play session for a project; `PlayClient.start` in the app,
 /// a fake in tests.
-typedef PlayStarter = Future<PlaySession> Function(String projectPath);
+typedef PlayStarter =
+    Future<PlaySession> Function(String projectPath, {RunLink? runLink});
+
+/// Makes the run link of a project; null when it can't (research R2).
+typedef RunLinkMaker = Future<RunLink?> Function(String projectPath);
 
 /// The open project's Play (spec 007, contracts/play-orchestration.md): at
 /// most one Play session at a time, its phase for the toolbar, its output
@@ -55,6 +71,7 @@ final class PlayController {
     required this._console,
     required this._start,
     this.block,
+    this._makeRunLink,
   });
 
   /// The project the game runs from.
@@ -65,15 +82,21 @@ final class PlayController {
 
   final ConsoleBuffer _console;
   final PlayStarter _start;
+  final RunLinkMaker? _makeRunLink;
+  RunLink? _runLink;
   final _phases = StreamController<PlayPhase>.broadcast();
   final _notices = StreamController<PlayNotice>.broadcast();
   var _phase = PlayPhase.stopped;
   PlaySession? _session;
   Future<void>? _ended;
   var _disposed = false;
+  var _restarting = false;
 
   /// Where the game is.
   PlayPhase get phase => _phase;
+
+  /// Whether *Attach debugger* has an address to give: the game runs.
+  bool get canAttach => _phase == PlayPhase.running;
 
   /// Every change of [phase].
   Stream<PlayPhase> get phases => _phases.stream;
@@ -88,11 +111,22 @@ final class PlayController {
     if (_disposed || _phase != PlayPhase.stopped || block != null) return;
     _setPhase(PlayPhase.starting);
     _pyro('Starting the game…');
+    final link = await _makeRunLink?.call(projectPath);
+    if (_makeRunLink != null && link == null) {
+      _pyro(
+        "Couldn't make the link that keeps an attached IDE from breaking "
+        'Hot-swap; the game runs without it, and attaching an IDE may stop '
+        'Hot-swap.',
+        ConsoleSeverity.warning,
+      );
+    }
+    _runLink = link;
     final PlaySession session;
     try {
-      session = await _start(projectPath);
+      session = await _start(projectPath, runLink: link);
     } on PlayStartException catch (error) {
       _pyro('$error', ConsoleSeverity.error);
+      await _removeRunLink();
       _setPhase(PlayPhase.stopped);
       return;
     }
@@ -101,8 +135,10 @@ final class PlayController {
     _ended = ended.future;
     session.events.listen(
       _onEvent,
-      onDone: () {
+      onDone: () async {
         if (identical(_session, session)) _session = null;
+        _restarting = false;
+        await _removeRunLink();
         _setPhase(PlayPhase.stopped);
         ended.complete();
       },
@@ -123,6 +159,32 @@ final class PlayController {
     if (session == null) return;
     await session.stop();
     await _ended;
+  }
+
+  /// The debugger address of the running game, for *Attach debugger* to put
+  /// on the clipboard; null unless the game runs. The only way to read it:
+  /// the Console, the notices and every log leave it out (FR-024).
+  String? copyDebuggerAddress() => canAttach ? _session?.debuggerAddress : null;
+
+  /// *Restart game*: a full restart of the running game, which also makes
+  /// Scene Hot-swaps work again after a failure. Does nothing unless the
+  /// game runs.
+  Future<void> restartGame() async {
+    final session = _session;
+    if (session == null || _phase != PlayPhase.running) return;
+    _restarting = true;
+    try {
+      await session.restart();
+    } on StateError {
+      // The game stopped meanwhile; its stop is reported on its own.
+      _restarting = false;
+    }
+  }
+
+  Future<void> _removeRunLink() async {
+    final link = _runLink;
+    _runLink = null;
+    await link?.remove();
   }
 
   /// Stops the game and closes the streams; the project is closing.
@@ -158,20 +220,29 @@ final class PlayController {
         );
       case PlayReloading(:final paths):
         _pyro(
-          paths.isEmpty
+          _restarting
+              ? 'Restarting the game…'
+              : paths.isEmpty
               ? 'Reloading the game…'
               : 'Hot-swap: ${paths.join(', ')}',
         );
       case PlayReloaded(:final elapsed):
-        _pyro('Reloaded in ${elapsed.inMilliseconds} ms.');
+        _pyro(
+          '${_restarting ? 'Restarted' : 'Reloaded'} in '
+          '${elapsed.inMilliseconds} ms.',
+        );
+        _restarting = false;
       case PlayReloadFailed(:final message):
         _pyro('Reload failed: $message', ConsoleSeverity.error);
-      case PlayHotSwapFailed():
+        _restarting = false;
+      case PlayHotSwapFailed(:final paths):
         _pyro(
           'Saved Scenes stopped reaching the game: the last two saves got '
-          'no answer from it. Restart the game to Hot-swap again.',
+          'no answer from it. An attached IDE or a stale game can cause '
+          'this; restart the game to Hot-swap again.',
           ConsoleSeverity.error,
         );
+        _notify(HotSwapFailed(paths));
       case PlayFailed(:final message):
         // The output tail is already in the Console as game lines.
         _pyro("The game couldn't start: $message", ConsoleSeverity.error);

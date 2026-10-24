@@ -88,7 +88,7 @@ void main() {
       container = ProviderContainer(
         overrides: [
           playFileSystemProvider.overrideWithValue(fs),
-          playStarterProvider.overrideWithValue((path) async {
+          playStarterProvider.overrideWithValue((path, {runLink}) async {
             started.add(path);
             throw PlayStartException(path, 'not in tests');
           }),

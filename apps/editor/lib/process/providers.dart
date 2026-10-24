@@ -22,6 +22,10 @@ final playFileSystemProvider = Provider<FileSystem>(
   (ref) => const LocalFileSystem(),
 );
 
+/// Where the run links live: Pyro's application-support folder, which the
+/// app sets. Null (the default, and in tests) means Play makes no run link.
+final runLinkSupportProvider = Provider<String?>((ref) => null);
+
 /// Starts Play sessions; the app's is `PlayClient.start` with the open
 /// project's `flutter`. Tests inject a fake.
 final playStarterProvider = Provider<PlayStarter>((ref) {
@@ -39,10 +43,14 @@ final playControllerProvider = Provider<PlayController?>((ref) {
   final project = ref.watch(projectProvider);
   if (project == null) return null;
   final fs = ref.watch(playFileSystemProvider);
+  final support = ref.watch(runLinkSupportProvider);
   final controller = PlayController(
     projectPath: project.root,
     console: ref.watch(consoleBufferProvider),
     start: ref.watch(playStarterProvider),
+    makeRunLink: support == null
+        ? null
+        : (path) => RunLink.create(path, supportDir: support, fileSystem: fs),
     block: PlayBlock.of(
       // A project that failed to open never reaches the editor window,
       // which shows its error instead.

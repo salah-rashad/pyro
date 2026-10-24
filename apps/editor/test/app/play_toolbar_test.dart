@@ -35,7 +35,7 @@ final class FakeStarts {
   var count = 0;
   final List<Completer<PlaySession>> _sessions = [];
 
-  Future<PlaySession> call(String path) {
+  Future<PlaySession> call(String path, {RunLink? runLink}) {
     count++;
     final session = Completer<PlaySession>();
     _sessions.add(session);

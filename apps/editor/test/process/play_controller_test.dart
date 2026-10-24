@@ -1,27 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show FileSystemEvent, FileSystemModifyEvent, ProcessSignal;
 
 import 'package:fake_async/fake_async.dart';
+import 'package:file/file.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pyro/process/process.dart';
 
 import 'fake_process.dart';
+import 'fake_vm.dart';
 
 /// A controller over a fake `flutter run` that replays recordings.
 final class Harness {
-  Harness({this.block}) {
+  Harness({this.block, bool link = false, this.linkFails = false}) {
     controller = PlayController(
       projectPath: projectPath,
       console: console,
       block: block,
-      start: (path) {
+      makeRunLink: link
+          ? (path) async => linkFails
+                ? null
+                : RunLink.create(path, supportDir: '/support', fileSystem: fs)
+          : null,
+      start: (path, {runLink}) {
         starts++;
         return PlayClient(
           startProcess: starter.call,
           fileSystem: fs,
-          watchDirectory: (_) => const Stream.empty(),
-        ).start(path);
+          watchDirectory: (_) => changes.stream,
+          vmConnect: vm.connect,
+        ).start(path, runLink: runLink);
       },
     );
     controller.phases.listen(phases.add);
@@ -29,7 +37,12 @@ final class Harness {
   }
 
   final PlayBlock? block;
+  final bool linkFails;
   final fs = projectFileSystem();
+  final vm = FakeVm();
+  // Closed with the test's zone; nothing to release.
+  // ignore: close_sinks
+  final changes = StreamController<FileSystemEvent>.broadcast();
   final process = FakeProcess();
   late final starter = FakeStarter(process);
   final console = ConsoleBuffer();
@@ -44,7 +57,12 @@ final class Harness {
     process.onRequest = (request) {
       process.emitLine(
         jsonEncode([
-          {'id': request['id'], 'result': true},
+          {
+            'id': request['id'],
+            'result': request['method'] == 'app.restart'
+                ? {'code': 0, 'message': ''}
+                : true,
+          },
         ]),
       );
       if (request['method'] == 'app.stop') {
@@ -53,6 +71,11 @@ final class Harness {
       }
     };
   }
+
+  /// A debug port line with [code] in its address.
+  String debugPort(String code) =>
+      '[{"event":"app.debugPort","params":{"appId":"app-1","port":5001,'
+      '"wsUri":"ws://127.0.0.1:5001/$code=/ws","baseUri":"file:///p/"}}]';
 
   /// Replays [name] up to and including its `app.started` event.
   void startedFrom(String name) {
@@ -211,7 +234,7 @@ void main() {
       final controller = PlayController(
         projectPath: projectPath,
         console: console,
-        start: (path) async =>
+        start: (path, {runLink}) async =>
             throw PlayStartException(path, 'could not start "flutter".'),
       );
       unawaited(controller.play());
@@ -267,6 +290,261 @@ void main() {
         contains('app.stop'),
       );
       expect(h.process.exited, isTrue);
+    });
+  });
+
+  group('the run link (FR-015, research R2)', () {
+    test('is made before the game starts and removed once it stopped', () {
+      fakeAsync((async) {
+        final h = Harness(link: true)..answerRequests();
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        final args = h.starter.arguments!;
+        final link = args[args.indexOf('--project-root') + 1];
+        expect(link, startsWith('/support/run/'));
+        expect(h.fs.link(link).existsSync(), isTrue);
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        expect(h.controller.phase, PlayPhase.stopped);
+        expect(h.fs.link(link).existsSync(), isFalse);
+        expect(h.fs.directory(h.fs.path.dirname(link)).existsSync(), isFalse);
+      });
+    });
+
+    test('a link that cannot be made is a Console note, and Play starts', () {
+      fakeAsync((async) {
+        final h = Harness(link: true, linkFails: true)..answerRequests();
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        expect(h.starts, 1);
+        expect(h.starter.arguments, isNot(contains('--project-root')));
+        final note = h
+            .linesFrom(ConsoleSource.pyro)
+            .firstWhere((line) => line.severity == ConsoleSeverity.warning);
+        expect(note.text, contains('IDE'));
+        expect(note.text, contains('Hot-swap'));
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        expect(h.controller.phase, PlayPhase.running);
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+      });
+    });
+
+    test('is removed when the game could not start', () {
+      fakeAsync((async) {
+        final h = Harness(link: true);
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        final args = h.starter.arguments!;
+        final link = args[args.indexOf('--project-root') + 1];
+        h.process
+          ..queueLines(recorded('build-failure.txt'))
+          ..emitAll()
+          ..exit(1);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.controller.phase, PlayPhase.stopped);
+        expect(h.fs.link(link).existsSync(), isFalse);
+      });
+    });
+  });
+
+  group('Attach and Restart game', () {
+    test('copyDebuggerAddress is null until the game runs and after', () {
+      fakeAsync((async) {
+        final h = Harness()..answerRequests();
+        expect(h.controller.canAttach, isFalse);
+        expect(h.controller.copyDebuggerAddress(), isNull);
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.process.emitLine(h.debugPort('AbCdEf123456'));
+        async.flushMicrotasks();
+        expect(h.controller.copyDebuggerAddress(), isNull, reason: 'starting');
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        expect(h.controller.canAttach, isTrue);
+        expect(
+          h.controller.copyDebuggerAddress(),
+          'http://127.0.0.1:5001/AbCdEf123456=/',
+        );
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        expect(h.controller.canAttach, isFalse);
+        expect(h.controller.copyDebuggerAddress(), isNull);
+      });
+    });
+
+    test('the address is in no Console line and no notice', () {
+      fakeAsync((async) {
+        final h = Harness()..answerRequests();
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.process
+          ..emitLine(h.debugPort('AbCdEf123456'))
+          ..emitLine(
+            'A Dart VM Service on macOS is available at: '
+            'http://127.0.0.1:5001/AbCdEf123456=/',
+          )
+          ..emitStderr('Lost ws://127.0.0.1:5001/AbCdEf123456=/ws');
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        h.process.emitAll();
+        h.controller.copyDebuggerAddress();
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        for (final line in h.console.lines) {
+          expect(line.text, isNot(contains('AbCdEf123456')));
+        }
+        for (final notice in h.notices) {
+          expect('$notice', isNot(contains('AbCdEf123456')));
+        }
+      });
+    });
+
+    test('restartGame is a full restart with its own Console lines', () {
+      fakeAsync((async) {
+        final h = Harness()..answerRequests();
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        unawaited(h.controller.restartGame());
+        async.elapse(const Duration(seconds: 1));
+        final restart = h.process.requests.last;
+        expect(restart['method'], 'app.restart');
+        expect(restart['params'], containsPair('fullRestart', true));
+        final pyro = h.linesFrom(ConsoleSource.pyro).map((l) => l.text);
+        expect(pyro, contains('Restarting the game…'));
+        expect(pyro, contains(startsWith('Restarted in ')));
+        expect(h.controller.phase, PlayPhase.running);
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+      });
+    });
+
+    test('restartGame does nothing unless the game runs', () {
+      fakeAsync((async) {
+        final h = Harness()..answerRequests();
+        unawaited(h.controller.restartGame());
+        async.flushMicrotasks();
+        expect(h.process.requests, isEmpty);
+        expect(h.console.lines, isEmpty);
+      });
+    });
+
+    test('a Hot-swap that stopped working is a notice and a Console line', () {
+      fakeAsync((async) {
+        final h = Harness(link: true)..answerRequests();
+        h.process.onRequest = (request) {
+          h.process.emitLine(
+            '[{"id":${request['id']},"result":{"code":0,"message":""}}]',
+          );
+        };
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        const scene = 'assets/scenes/level1.scene.json';
+        final file = h.fs.file('$projectPath/$scene')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $scene');
+        async.flushMicrotasks();
+        for (final content in ['v2', 'v3']) {
+          file.writeAsStringSync(content);
+          h.changes.add(FileSystemModifyEvent(file.path, false, true));
+          async.elapse(const Duration(seconds: 5));
+        }
+        expect(h.notices.whereType<HotSwapFailed>(), hasLength(1));
+        expect(
+          h.linesFrom(ConsoleSource.pyro).map((l) => l.text),
+          contains(contains('restart the game')),
+        );
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+      });
+    });
+  });
+
+  group('a whole run writes nothing in the project (FR-030)', () {
+    bool underSupport(String path) =>
+        path.startsWith('/support') || path.startsWith('support');
+
+    Map<String, String> tree(Harness h) => {
+      for (final entity
+          in h.fs.directory('/').listSync(recursive: true, followLinks: false))
+        if (entity is File && !underSupport(entity.path))
+          entity.path: entity.readAsStringSync(),
+    };
+
+    test('Play, saves, Attach and Stop', () {
+      fakeAsync((async) {
+        final h = Harness(link: true)..answerRequests();
+        const scene = '$projectPath/assets/scenes/level1.scene.json';
+        h.fs.file(scene).writeAsStringSync('v1');
+        final before = tree(h);
+        final directories = {
+          for (final e
+              in h.fs
+                  .directory('/')
+                  .listSync(recursive: true, followLinks: false))
+            if (e is Directory) e.path,
+        };
+
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.process.emitLine(h.debugPort('AbCdEf123456'));
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        h.changes.add(FileSystemModifyEvent(scene, false, true));
+        async.elapse(const Duration(seconds: 1));
+        expect(h.controller.copyDebuggerAddress(), isNotNull);
+
+        final arguments = h.starter.arguments!;
+        for (final forbidden in [
+          '--disable-service-auth-codes',
+          '--disable-dds',
+          '--dds-port',
+          '--host-vmservice-port',
+          '--vm-service-port',
+          '--observatory-port',
+          '--target',
+          '-t',
+        ]) {
+          expect(arguments, isNot(contains(forbidden)));
+        }
+        // The one new thing anywhere is the link, under the support folder.
+        final created = {
+          for (final e
+              in h.fs
+                  .directory('/')
+                  .listSync(recursive: true, followLinks: false))
+            if (!directories.contains(e.path) && !before.containsKey(e.path))
+              e.path,
+        };
+        expect(created, isNotEmpty);
+        expect(created.every(underSupport), isTrue);
+
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        expect(tree(h), before, reason: 'byte-identical');
+        for (final entity
+            in h.fs
+                .directory('/')
+                .listSync(recursive: true, followLinks: false)) {
+          expect(entity.path, isNot(contains('.dart_tool/pyro')));
+          expect(entity.path, isNot(contains('.vscode')));
+        }
+        expect(
+          h.fs
+              .directory('/support')
+              .listSync(recursive: true)
+              .whereType<Link>(),
+          isEmpty,
+        );
+      });
     });
   });
 }
