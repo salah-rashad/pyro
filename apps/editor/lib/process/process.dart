@@ -36,4 +36,5 @@ export 'src/play_event.dart'
         ReloadResult;
 export 'src/play_session.dart' show PlaySession;
 export 'src/redact.dart' show redactAuthCodes;
+export 'src/run_link.dart' show RunLink;
 export 'src/scene_watcher.dart' show DirectoryWatcher, watchRecursively;
