@@ -149,6 +149,10 @@ _Avoid_: run, launch
 Pyro's one log of the generator's, the game's and Pyro's own lines for the open project, with debugger auth codes masked; it keeps the last 10,000 lines.
 _Avoid_: log panel, output
 
+**External build_runner**:
+A `build_runner` that Pyro did not start, such as one the developer runs in a terminal or an IDE. Pyro sees it only by its lock, shows "External build_runner", never stops it, and starts its own run again once the lock is free.
+_Avoid_: user generator, foreign build
+
 **Contract test**:
 The CI check that `example/`'s generated Registry and Manifest are committed and reviewed, and that every `example/` Scene loads with the real Registry, with no error and no warning.
 

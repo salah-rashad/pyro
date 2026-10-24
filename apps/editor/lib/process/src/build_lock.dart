@@ -19,7 +19,7 @@ enum LockProbeResult {
 /// `build_runner` locks `.dart_tool/build/lock/build_runner.lock` while it
 /// runs and leaves the empty file behind when it exits, so the file's
 /// existence says nothing; only the lock does.
-final class BuildLockProbe {
+class BuildLockProbe {
   /// Creates the probe.
   const BuildLockProbe();
 
