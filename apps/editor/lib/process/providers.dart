@@ -73,8 +73,7 @@ final buildLockProbeProvider = Provider<BuildLockProbe>(
 /// incompatible Runtime, in that order.
 String? generatorSetUpProblem(ProjectState project, FileSystem fileSystem) {
   if (project.sdk.source == SdkSource.none) {
-    return 'No Flutter SDK was found, so build_runner cannot run. '
-        'Set FLUTTER_ROOT or put flutter on PATH.';
+    return 'build_runner needs the Flutter SDK, which was not found.';
   }
   return BuildRunnerVersion.of(project.root, fileSystem: fileSystem).reason ??
       runtimeProblem(project.compatibility);

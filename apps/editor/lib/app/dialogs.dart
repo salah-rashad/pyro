@@ -375,3 +375,44 @@ Future<void> showCatalogProblemsDialog(
     ),
   );
 }
+
+/// The generator's failed build (spec 007, FR-019): the file and the
+/// message `build_runner` reported. The whole output is in the Console.
+Future<void> showGeneratorErrorDialog(
+  BuildContext context, {
+  required String? file,
+  required String? message,
+}) {
+  final c = PrColors.of(context);
+  return showFsDialog<void>(
+    context,
+    dialog: PrDialog(
+      title: 'Generator error',
+      width: PrDialogWidth.form,
+      content: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: PrSpacing.s2,
+          children: [
+            if (file != null)
+              Text(
+                file,
+                style: PrText.monoSmall.copyWith(color: c.textSecondary),
+              ),
+            Text(
+              message ?? 'The build failed.',
+              style: PrText.small.copyWith(color: c.error),
+            ),
+            Text(
+              'The types stay as they were until the build succeeds. The '
+              "generator's whole output is in the Console.",
+              style: PrText.small.copyWith(color: c.textSecondary),
+            ),
+          ],
+        ),
+      ),
+      primary: const PrDialogAction(label: 'OK'),
+    ),
+  );
+}

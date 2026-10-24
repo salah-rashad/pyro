@@ -5,6 +5,7 @@ import 'dart:ui' show AppExitResponse;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pyro/panels/panels.dart';
+import 'package:pyro/process/providers.dart';
 import 'package:pyro/project/project.dart';
 import 'package:pyro_ui/pyro_ui.dart';
 
@@ -14,6 +15,7 @@ import 'play_toolbar.dart';
 import 'providers.dart';
 import 'save_scene.dart';
 import 'shortcuts.dart';
+import 'status_bar.dart';
 
 /// The title bar's leading inset on macOS: the traffic lights (close,
 /// minimise, zoom) sit over the full-size content view there, so the
@@ -185,9 +187,12 @@ class _PyroEditorWindowState extends ConsumerState<PyroEditorWindow> {
           bottomCollapsed: _consoleCollapsed,
           onBottomCollapsedChanged: (collapsed) =>
               setState(() => _consoleCollapsed = collapsed),
-          statusBar: _StatusBar(
+          statusBar: StatusBar(
             project: project,
             catalog: ref.watch(typeCatalogProvider),
+            generator: ref.watch(generatorStateProvider).value,
+            onStartGenerator: () =>
+                unawaited(ref.read(generatorProvider)?.start()),
           ),
           sizes: _sizes,
           onSizesChanged: (sizes) => setState(() => _sizes = sizes),
@@ -239,127 +244,6 @@ Future<void> discardScene(ProviderContainer container, String sceneId) async {
     container.read(openScenesProvider.notifier).close(sceneId);
   } finally {
     link.close();
-  }
-}
-
-/// The status bar (FR-003/FR-004/FR-014): the detected SDK, the Runtime
-/// compatibility result, and the Type catalog's status — up to date,
-/// built-ins only, or stale with its problems one click away.
-class _StatusBar extends StatelessWidget {
-  const _StatusBar({required this.project, required this.catalog});
-
-  final ProjectState? project;
-
-  /// The project's types, for the catalog's status item (T022).
-  final TypeCatalog catalog;
-
-  @override
-  Widget build(BuildContext context) {
-    final sdk = project?.sdk;
-    final compatibility = project?.compatibility;
-    return Row(
-      spacing: PrSpacing.s4,
-      children: [
-        _item(
-          context,
-          icon: PrIcons.terminal,
-          text: sdk == null || sdk.version == null
-              ? 'No Flutter SDK found'
-              : 'Flutter ${sdk.version}',
-        ),
-        _item(
-          context,
-          icon: PrIcons.box,
-          text: switch (compatibility?.status) {
-            RuntimeCompatStatus.ok =>
-              'pyro_runtime ${compatibility!.foundVersion}',
-            RuntimeCompatStatus.tooOld =>
-              'pyro_runtime ${compatibility!.foundVersion} — too old to read saves',
-            RuntimeCompatStatus.tooNew =>
-              'pyro_runtime ${compatibility!.foundVersion} — needs a newer Pyro',
-            RuntimeCompatStatus.unknown || null => 'pyro_runtime: not found',
-          },
-        ),
-        _typesItem(context, catalog),
-      ],
-    );
-  }
-
-  /// The catalog's status (FR-014): up to date / built-ins only / stale
-  /// with its errors counted — never "no types", because a stale catalog
-  /// keeps the last good ones (*Q105*). Clicking opens the problems.
-  ///
-  /// `PrInteractive`, not `InkWell`: the editor window has no Material
-  /// ancestor (only `PrDialog` brings its own), and the `Pr` widgets are
-  /// built without one.
-  Widget _typesItem(BuildContext context, TypeCatalog catalog) {
-    return PrTooltip(
-      message: 'Show the Type catalog',
-      child: PrInteractive(
-        onPressed: () => showCatalogProblemsDialog(context, catalog: catalog),
-        cursor: SystemMouseCursors.click,
-        semanticsLabel: 'Type catalog',
-        builder: (context, states) {
-          final c = PrColors.of(context);
-          return PrFocusRing.outside(
-            visible: states.contains(WidgetState.focused),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: PrSpacing.s1),
-              decoration: BoxDecoration(
-                color: states.contains(WidgetState.hovered)
-                    ? c.surfaceHover
-                    : null,
-                borderRadius: PrRadii.sm,
-              ),
-              child: Row(
-                spacing: PrSpacing.s1,
-                children: [
-                  Icon(PrIcons.code, size: 12, color: c.textSecondary),
-                  Text(
-                    _typesStatus(catalog),
-                    style: PrText.small.copyWith(
-                      color: states.contains(WidgetState.hovered)
-                          ? c.textPrimary
-                          : c.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  String _typesStatus(TypeCatalog catalog) {
-    final errors = catalog.problems
-        .where((problem) => !problem.isWarning)
-        .length;
-    return switch (catalog.origin) {
-      ManifestUpToDate() => 'Types up to date',
-      ManifestAbsent() => 'Built-in types only',
-      ManifestStale(:final reason) =>
-        errors == 0
-            ? 'Types stale — $reason'
-            : 'Types stale — ${errors == 1 ? '1 error' : '$errors errors'} '
-                  '($reason)',
-    };
-  }
-
-  Widget _item(
-    BuildContext context, {
-    required IconData icon,
-    required String text,
-  }) {
-    final c = PrColors.of(context);
-    return Row(
-      spacing: PrSpacing.s1,
-      children: [
-        Icon(icon, size: 12, color: c.textSecondary),
-        Text(text, style: PrText.small.copyWith(color: c.textSecondary)),
-      ],
-    );
   }
 }
 

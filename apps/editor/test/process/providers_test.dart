@@ -225,7 +225,11 @@ void main() {
           compatible: true,
         ),
         '2.13.9': (lock: '2.13.9', sdk: _sdk, compatible: true),
-        'No Flutter SDK': (lock: '2.15.1', sdk: SdkInfo.none, compatible: true),
+        'needs the Flutter SDK': (
+          lock: '2.15.1',
+          sdk: SdkInfo.none,
+          compatible: true,
+        ),
         'pyro_runtime was not found': (
           lock: '2.15.1',
           sdk: _sdk,
