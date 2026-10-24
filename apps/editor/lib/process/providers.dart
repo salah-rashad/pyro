@@ -5,6 +5,9 @@
 /// the process units only through these providers.
 library;
 
+import 'dart:async';
+import 'dart:io' show Process;
+
 import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,6 +56,81 @@ final playControllerProvider = Provider<PlayController?>((ref) {
   );
   ref.onDispose(controller.dispose);
   return controller;
+});
+
+/// Spawns the generator's `build_runner`; tests inject a fake.
+final generatorProcessStarterProvider = Provider<ProcessStarter>(
+  (ref) => Process.start,
+);
+
+/// Looks at the project's `build_runner` lock; tests inject a fake.
+final buildLockProbeProvider = Provider<BuildLockProbe>(
+  (ref) => const BuildLockProbe(),
+);
+
+/// Why the generator cannot run in [project], or null (FR-017, FR-020):
+/// no Flutter SDK, no `build_runner` or one older than 2.14, or an
+/// incompatible Runtime, in that order.
+String? generatorSetUpProblem(ProjectState project, FileSystem fileSystem) {
+  if (project.sdk.source == SdkSource.none) {
+    return 'No Flutter SDK was found, so build_runner cannot run. '
+        'Set FLUTTER_ROOT or put flutter on PATH.';
+  }
+  return BuildRunnerVersion.of(project.root, fileSystem: fileSystem).reason ??
+      runtimeProblem(project.compatibility);
+}
+
+/// The open project's generator: one `GeneratorSupervisor` per project,
+/// started when the project opens, its output forwarded to the Console, and
+/// disposed (which stops Pyro's own `build_runner`, never an external one)
+/// when the project closes; null with no project.
+final generatorProvider = Provider<GeneratorSupervisor?>((ref) {
+  final project = ref.watch(projectProvider);
+  if (project == null) return null;
+  final console = ref.watch(consoleBufferProvider);
+  final supervisor = GeneratorSupervisor(
+    projectPath: project.root,
+    dart: dartExecutable(project.sdk),
+    setUpProblem: generatorSetUpProblem(
+      project,
+      ref.watch(playFileSystemProvider),
+    ),
+    startProcess: ref.watch(generatorProcessStarterProvider),
+    probe: ref.watch(buildLockProbeProvider),
+  );
+  var continuesSevere = false;
+  final lines = supervisor.lines.listen((line) {
+    final kind = classifyGeneratorLine(line);
+    // A severe line is followed by its message, indented.
+    final isError =
+        kind == GeneratorLine.severe ||
+        kind == GeneratorLine.failed ||
+        (continuesSevere && line.startsWith(' '));
+    continuesSevere = kind == GeneratorLine.severe;
+    console.add(
+      line,
+      source: ConsoleSource.generator,
+      severity: isError ? ConsoleSeverity.error : ConsoleSeverity.info,
+    );
+  });
+  ref.onDispose(() {
+    unawaited(lines.cancel());
+    unawaited(supervisor.dispose());
+  });
+  unawaited(supervisor.start());
+  return supervisor;
+});
+
+/// The open project's generator state, for the status bar; "stopped" with
+/// no project.
+final generatorStateProvider = StreamProvider<GeneratorState>((ref) async* {
+  final supervisor = ref.watch(generatorProvider);
+  if (supervisor == null) {
+    yield GeneratorState.initial;
+    return;
+  }
+  yield supervisor.state;
+  yield* supervisor.states;
 });
 
 /// The open project's Play phase, for the toolbar; stopped with no

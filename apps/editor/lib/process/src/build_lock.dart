@@ -1,4 +1,5 @@
-import 'dart:io';
+import 'package:file/file.dart';
+import 'package:file/local.dart';
 
 /// What the probe found at `build_runner`'s lock (contracts/generator-
 /// supervisor.md, "BuildLockProbe").
@@ -20,8 +21,12 @@ enum LockProbeResult {
 /// runs and leaves the empty file behind when it exits, so the file's
 /// existence says nothing; only the lock does.
 class BuildLockProbe {
-  /// Creates the probe.
-  const BuildLockProbe();
+  /// Creates the probe, reading [fileSystem] (the local one: an
+  /// operating-system lock needs a real file).
+  const BuildLockProbe({FileSystem fileSystem = const LocalFileSystem()})
+    : _fs = fileSystem;
+
+  final FileSystem _fs;
 
   /// The lock file's path inside [projectPath].
   static String lockPath(String projectPath) =>
@@ -30,7 +35,7 @@ class BuildLockProbe {
   /// Probes [projectPath]'s lock. Creates no file: not the lock and not the
   /// `.requested` marker `build_runner` uses to ask a run to exit.
   Future<LockProbeResult> check(String projectPath) async {
-    final file = File(lockPath(projectPath));
+    final file = _fs.file(lockPath(projectPath));
     if (!file.existsSync()) return LockProbeResult.absent;
     RandomAccessFile? handle;
     try {
