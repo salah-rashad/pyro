@@ -13,6 +13,7 @@ export 'src/generator_output.dart'
     show GeneratorLine, classifyGeneratorLine, severeFile;
 export 'src/generator_state.dart' show GeneratorState, GeneratorStatus;
 export 'src/generator_supervisor.dart' show GeneratorSupervisor;
+export 'src/hot_swap_monitor.dart' show HotSwapMonitor;
 export 'src/play_block.dart' show PlayBlock;
 export 'src/play_client.dart' show PlayClient, ProcessStarter;
 export 'src/play_controller.dart'
@@ -23,6 +24,7 @@ export 'src/play_event.dart'
         PlayDebuggerAvailable,
         PlayEvent,
         PlayFailed,
+        PlayHotSwapFailed,
         PlayOutput,
         PlayOutputSource,
         PlayReloadFailed,

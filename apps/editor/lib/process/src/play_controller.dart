@@ -166,6 +166,12 @@ final class PlayController {
         _pyro('Reloaded in ${elapsed.inMilliseconds} ms.');
       case PlayReloadFailed(:final message):
         _pyro('Reload failed: $message', ConsoleSeverity.error);
+      case PlayHotSwapFailed():
+        _pyro(
+          'Saved Scenes stopped reaching the game: the last two saves got '
+          'no answer from it. Restart the game to Hot-swap again.',
+          ConsoleSeverity.error,
+        );
       case PlayFailed(:final message):
         // The output tail is already in the Console as game lines.
         _pyro("The game couldn't start: $message", ConsoleSeverity.error);

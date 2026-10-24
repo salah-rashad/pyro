@@ -141,6 +141,21 @@ final class PlayReloadFailed extends PlayEvent {
   String toString() => 'reload failed: $message';
 }
 
+/// Scene saves stopped reaching the game: two in a row got no report from it
+/// (FR-011, research R6). Scene Hot-swaps stop until the game is restarted.
+final class PlayHotSwapFailed extends PlayEvent {
+  const PlayHotSwapFailed(this.paths, this.misses);
+
+  /// The Scenes of the last missed save, project-relative.
+  final Set<String> paths;
+
+  /// How many saves in a row got no report.
+  final int misses;
+
+  @override
+  String toString() => 'Hot-swap failed ($misses saves unreported)';
+}
+
 /// The game couldn't start: `flutter run` ended before the app started.
 final class PlayFailed extends PlayEvent {
   const PlayFailed({
