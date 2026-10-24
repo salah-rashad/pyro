@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pyro_ui/pyro_ui.dart';
 
 import '../process/process.dart';
 import '../process/providers.dart';
+import 'attach_guide.dart';
 import 'dialogs.dart';
 import 'open_scene.dart';
 import 'providers.dart';
@@ -70,6 +72,14 @@ class PlayToolbar extends ConsumerWidget {
               _phaseLabel(phase),
               style: PrText.small.copyWith(color: c.textSecondary),
             ),
+            PrIconButton(
+              icon: PrIcons.link,
+              tooltip: 'Attach debugger',
+              onPressed: controller == null || !controller.canAttach
+                  ? null
+                  : () => unawaited(_attach(context, controller)),
+              disabledReason: 'Press Play first',
+            ),
           ],
         ),
       ],
@@ -98,6 +108,19 @@ class PlayToolbar extends ConsumerWidget {
     PlayPhase.running => 'Running',
     PlayPhase.stopping => 'Stopping…',
   };
+}
+
+/// *Attach debugger* (FR-027): puts the running game's address on the
+/// clipboard, says so without showing it, and opens the guide.
+Future<void> _attach(BuildContext context, PlayController controller) async {
+  final address = controller.copyDebuggerAddress();
+  if (address == null) return;
+  await Clipboard.setData(ClipboardData(text: address));
+  if (!context.mounted) return;
+  PrToastHost.of(context).show(
+    const PrToastData(kind: PrToastKind.info, title: 'Debugger address copied'),
+  );
+  await showAttachGuide(context);
 }
 
 /// Play's press (FR-006): with unsaved Scenes, asks "Save and play" or

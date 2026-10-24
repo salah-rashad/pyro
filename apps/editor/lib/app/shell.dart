@@ -11,6 +11,7 @@ import 'package:pyro_ui/pyro_ui.dart';
 
 import 'dialogs.dart';
 import 'open_scene.dart';
+import 'play_notices.dart';
 import 'play_toolbar.dart';
 import 'providers.dart';
 import 'save_scene.dart';
@@ -147,56 +148,58 @@ class _PyroEditorWindowState extends ConsumerState<PyroEditorWindow> {
     );
 
     return Scaffold(
-      body: PyroShortcuts(
-        command: widget.command,
-        panels: panelNodes,
-        child: PrEditorShell(
-          titleBar: Center(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: PrText.small.copyWith(
-                color: PrColors.of(context).textSecondary,
+      body: PlayNotices(
+        child: PyroShortcuts(
+          command: widget.command,
+          panels: panelNodes,
+          child: PrEditorShell(
+            titleBar: Center(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: PrText.small.copyWith(
+                  color: PrColors.of(context).textSecondary,
+                ),
               ),
             ),
+            titleBarLeadingInset: Platform.isMacOS
+                ? macTrafficLightsInset
+                : plainTitleBarInset,
+            toolbar: PlayToolbar(command: widget.command),
+            left: dock(0, widget.left, 'Hierarchy'),
+            center: dock(
+              1,
+              widget.tabs != null
+                  ? Column(
+                      children: [
+                        widget.tabs!,
+                        Expanded(
+                          child:
+                              widget.center ??
+                              const _PanelPlaceholder(label: 'Viewport'),
+                        ),
+                      ],
+                    )
+                  : widget.center,
+              'Viewport',
+            ),
+            right: dock(2, widget.right, 'Inspector'),
+            bottom: const ConsolePanel(),
+            bottomCollapsed: _consoleCollapsed,
+            onBottomCollapsedChanged: (collapsed) =>
+                setState(() => _consoleCollapsed = collapsed),
+            statusBar: StatusBar(
+              project: project,
+              catalog: ref.watch(typeCatalogProvider),
+              generator: ref.watch(generatorStateProvider).value,
+              onStartGenerator: () =>
+                  unawaited(ref.read(generatorProvider)?.start()),
+            ),
+            sizes: _sizes,
+            onSizesChanged: (sizes) => setState(() => _sizes = sizes),
+            onSizesChangeEnd: _persistSizes,
           ),
-          titleBarLeadingInset: Platform.isMacOS
-              ? macTrafficLightsInset
-              : plainTitleBarInset,
-          toolbar: PlayToolbar(command: widget.command),
-          left: dock(0, widget.left, 'Hierarchy'),
-          center: dock(
-            1,
-            widget.tabs != null
-                ? Column(
-                    children: [
-                      widget.tabs!,
-                      Expanded(
-                        child:
-                            widget.center ??
-                            const _PanelPlaceholder(label: 'Viewport'),
-                      ),
-                    ],
-                  )
-                : widget.center,
-            'Viewport',
-          ),
-          right: dock(2, widget.right, 'Inspector'),
-          bottom: const ConsolePanel(),
-          bottomCollapsed: _consoleCollapsed,
-          onBottomCollapsedChanged: (collapsed) =>
-              setState(() => _consoleCollapsed = collapsed),
-          statusBar: StatusBar(
-            project: project,
-            catalog: ref.watch(typeCatalogProvider),
-            generator: ref.watch(generatorStateProvider).value,
-            onStartGenerator: () =>
-                unawaited(ref.read(generatorProvider)?.start()),
-          ),
-          sizes: _sizes,
-          onSizesChanged: (sizes) => setState(() => _sizes = sizes),
-          onSizesChangeEnd: _persistSizes,
         ),
       ),
     );

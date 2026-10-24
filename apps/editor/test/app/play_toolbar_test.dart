@@ -15,6 +15,7 @@ import 'package:pyro_ui/pyro_ui.dart';
 
 import '../document/helpers/scenes.dart';
 import '../helpers/fixtures.dart';
+import '../process/fake_game.dart';
 
 const scenePath = '/proj/assets/scenes/level1.scene.json';
 
@@ -61,11 +62,12 @@ void main() {
   ProviderContainer openProject({
     SdkInfo sdk = _sdk,
     RuntimeCompatibility compatibility = _compatible,
+    PlayStarter? starter,
   }) {
     final c = ProviderContainer(
       overrides: [
         playFileSystemProvider.overrideWithValue(fs),
-        playStarterProvider.overrideWithValue(starts.call),
+        playStarterProvider.overrideWithValue(starter ?? starts.call),
       ],
     );
     c
@@ -85,11 +87,13 @@ void main() {
         theme: PrTheme.dark(),
         home: UncontrolledProviderScope(
           container: container,
-          child: Material(
-            color: PrColors.dark.surfacePanel,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: PlayToolbar(command: command),
+          child: PrToastHost(
+            child: Material(
+              color: PrColors.dark.surfacePanel,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: PlayToolbar(command: command),
+              ),
             ),
           ),
         ),
@@ -127,6 +131,11 @@ void main() {
   }
 
   Finder playButton() => find.widgetWithText(PrButton, 'Play');
+
+  Finder attachButton() => find.ancestor(
+    of: find.byIcon(PrIcons.link),
+    matching: find.byType(PrIconButton),
+  );
 
   setUp(() {
     starts = FakeStarts();
@@ -320,5 +329,67 @@ void main() {
     expect(find.text('Save and play'), findsNothing);
     expect(starts.count, 1);
     await closeAll();
+  });
+
+  group('Attach debugger (FR-027)', () {
+    testWidgets('is disabled with "Press Play first" when no game runs', (
+      tester,
+    ) async {
+      container = openProject();
+      await pump(tester);
+      final button = tester.widget<PrIconButton>(attachButton());
+      expect(button.onPressed, isNull);
+      expect(button.disabledReason, 'Press Play first');
+    });
+
+    testWidgets('copies the address, says so without it, opens the guide', (
+      tester,
+    ) async {
+      final game = LiveGame(fs);
+      container = openProject(starter: game.start);
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await pump(tester);
+      await tester.tap(playButton());
+      await tester.pump();
+      expect(tester.widget<PrIconButton>(attachButton()).onPressed, isNull);
+      game.started('AbCdEf123456');
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Running'), findsOneWidget);
+
+      await tester.tap(attachButton());
+      await tester.pumpAndSettle();
+      expect(copied, 'http://127.0.0.1:5001/AbCdEf123456=/');
+      expect(find.text('Debugger address copied'), findsOneWidget);
+      expect(find.text('Attach your IDE to the game'), findsOneWidget);
+      // The address is nowhere on screen (SC-005).
+      expect(find.textContaining('AbCdEf123456'), findsNothing);
+      expect(find.textContaining('127.0.0.1'), findsNothing);
+      expect(find.textContaining('ws://'), findsNothing);
+
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(PrButton, 'Stop'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(PlayDefaults.consoleNotify);
+      expect(find.text('Stopped'), findsOneWidget);
+      expect(tester.widget<PrIconButton>(attachButton()).onPressed, isNull);
+    });
   });
 }
