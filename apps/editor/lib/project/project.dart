@@ -9,6 +9,14 @@ export 'asset_folders.dart'
         discoverImages,
         imageExtensions,
         isDeclaredFolder;
+export 'build_runner_version.dart'
+    show
+        BuildRunnerAbsent,
+        BuildRunnerOk,
+        BuildRunnerTooOld,
+        BuildRunnerUnknown,
+        BuildRunnerVersion,
+        minimumBuildRunner;
 export 'catalog/behaviors.dart'
     show behaviorOffers, behaviorRefusal, satisfiesParentType;
 export 'catalog/built_in.dart' show builtInTypes;
