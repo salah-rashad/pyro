@@ -215,7 +215,11 @@ void main() {
         .listSync(recursive: true)
         .whereType<File>()
         .where((f) => f.path.endsWith('.dart'))
-        .where((f) => !f.path.endsWith('lib/process/providers.dart'));
+        .where(
+          (f) => !f.path
+              .replaceAll('\\', '/')
+              .endsWith('lib/process/providers.dart'),
+        );
     expect(sources, isNotEmpty);
     for (final source in [...sources, File('bin/play.dart')]) {
       expect(

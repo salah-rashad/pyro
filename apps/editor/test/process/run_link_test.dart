@@ -105,6 +105,10 @@ void main() {
       final link = await RunLink.create(project.path, supportDir: support.path);
       expect(link, isNull);
     },
+    // `chmod` does not restrict a folder on Windows.
+    skip: Platform.isWindows
+        ? 'read-only folders need POSIX permissions'
+        : null,
   );
 
   test('is null when the support folder cannot exist', () async {

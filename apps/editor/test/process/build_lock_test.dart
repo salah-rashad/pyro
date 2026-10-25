@@ -8,7 +8,9 @@ import 'package:pyro/process/process.dart';
 /// where it is, else the one on `PATH`.
 String get _dart {
   final root = Platform.environment['FLUTTER_ROOT'];
-  return root == null ? 'dart' : '$root/bin/dart';
+  // On Windows the SDK's launcher is `dart.bat`; `bin/dart` is a shell script.
+  final name = Platform.isWindows ? 'dart.bat' : 'dart';
+  return root == null ? name : '$root/bin/$name';
 }
 
 void main() {
@@ -33,7 +35,7 @@ void main() {
       'run',
       'test/helpers/hold_lock.dart',
       project.path,
-    ]);
+    ], runInShell: Platform.isWindows);
     final lines = process.stdout
         .transform(utf8.decoder)
         .transform(const LineSplitter());
