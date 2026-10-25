@@ -989,3 +989,9 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
     and the undo's reload could not revive it. The code watcher now holds reloads while the generator
     reports an error, says why in the Console, and reloads once when it recovers (research R10). Checked
     live: the game kept spinning with the error in place, and after the undo.
+14. **The red close button left Pyro running with no window** (author, by hand): closing the last window
+    made macOS ask Dart to confirm the exit, and the "Stop it and quit?" dialog had nowhere to appear,
+    so Pyro, its `build_runner` and the `flutter run` host stayed alive. `MainFlutterWindow` is now its
+    own delegate: the red button calls `NSApp.terminate`, the same path as ⌘Q, and keeps the window up
+    until the app really exits. Checked by hand: with a game running the button asks, Cancel keeps
+    Pyro and the game, and "Stop and quit" leaves no Pyro, game or `flutter run` process.
