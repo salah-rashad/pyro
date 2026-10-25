@@ -547,4 +547,76 @@ void main() {
       });
     });
   });
+
+  group('a whole run never shows its auth code (FR-024, SC-005)', () {
+    const code = 'Zq8Lm2Xw9Pk4';
+
+    /// Everything the user or a log could see after a run: the Console, the
+    /// notices, the phases and the controller itself.
+    Iterable<String> everythingShown(Harness h) => [
+      ...h.console.lines.map((line) => line.text),
+      ...h.console.lines.map((line) => '$line'),
+      ...h.notices.map((notice) => '$notice'),
+      ...h.phases.map((phase) => '$phase'),
+      '${h.controller}',
+    ];
+
+    for (final name in ['run-scene-save.txt', 'ide-attached.txt']) {
+      test('replaying $name with a real code in every address', () {
+        fakeAsync((async) {
+          final h = Harness(link: name == 'ide-attached.txt');
+          unawaited(h.controller.play());
+          async.flushMicrotasks();
+          h.process.queueLines(
+            recorded(name).map((line) => line.replaceAll('<auth-code>', code)),
+          );
+          h.process.emitAll();
+          // What the engine prints on its own, and what a tool can print
+          // on stderr.
+          h.process
+            ..emitLine(
+              'flutter: Dart VM service on http://127.0.0.1:5001/$code=/',
+            )
+            ..emitLine(
+              'The Dart Tooling Daemon is at ws://127.0.0.1:5000/$code=',
+            )
+            ..emitStderr('observatory: ws://127.0.0.1:5001/$code=/ws');
+          async.flushMicrotasks();
+          expect(h.controller.phase, PlayPhase.running);
+          expect(h.console.lines, isNotEmpty);
+
+          // Only the explicit action gives the address out.
+          expect(h.controller.copyDebuggerAddress(), contains(code));
+
+          unawaited(h.controller.stop());
+          async.elapse(const Duration(seconds: 10));
+          h.process.exit(0);
+          async.elapse(const Duration(seconds: 2));
+          expect(h.controller.phase, PlayPhase.stopped);
+          expect(h.controller.copyDebuggerAddress(), isNull);
+
+          for (final shown in everythingShown(h)) {
+            expect(shown, isNot(contains(code)));
+          }
+        });
+      });
+    }
+
+    test('a game that ends on its own leaves no code in its notice', () {
+      fakeAsync((async) {
+        final h = Harness();
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        h.process.emitLine(h.debugPort(code));
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        h.process.exit(1);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.notices.whereType<GameStopped>(), hasLength(1));
+        for (final shown in everythingShown(h)) {
+          expect(shown, isNot(contains(code)));
+        }
+      });
+    });
+  });
 }

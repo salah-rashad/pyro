@@ -172,13 +172,13 @@
 
 ### Tests for User Story 5 (write first, must fail)
 
-- [ ] T060 [P] [US5] Write `benchmark/console_throughput.dart`: pushes 5,000 lines per second for 10 seconds into a `ConsoleBuffer` with a mix of sources and lines containing addresses, then prints the cost per line, the number of notifications (≤ 20 per second) and the retained line count (= capacity).
-- [ ] T061 [US5] Add a run-level redaction test in `test/process/play_controller_test.dart` using `ide-attached.txt` and `run-scene-save.txt`: after a whole simulated run, no Console line, notice, `toString` of any event or controller state contains the run's auth code (SC-005); only `copyDebuggerAddress()` returns it.
+- [X] T060 [P] [US5] Write `benchmark/console_throughput.dart`: pushes 5,000 lines per second for 10 seconds into a `ConsoleBuffer` with a mix of sources and lines containing addresses, then prints the cost per line, the number of notifications (≤ 20 per second) and the retained line count (= capacity).
+- [X] T061 [US5] Add a run-level redaction test in `test/process/play_controller_test.dart` using `ide-attached.txt` and `run-scene-save.txt`: after a whole simulated run, no Console line, notice, `toString` of any event or controller state contains the run's auth code (SC-005); only `copyDebuggerAddress()` returns it.
 
 ### Implementation for User Story 5
 
-- [ ] T062 [US5] Make sure the buffer has a single entry point: the controller (T020), the generator (T035) and the game output already do; add a test in `test/process/providers_test.dart` that a line written by each of the three paths with an address in it reaches `ConsoleBuffer.lines` redacted, and that no code path adds to the buffer without `add`. T061 passes.
-- [ ] T063 [US5] (reference Mac) Run `dart run benchmark/console_throughput.dart` and the profile-mode frame check of quickstart §3.6 (`flutter run -d macos --profile`, a game printing 5,000 lines in one second): no frame over 16 ms while the Console follows the tail (SC-006). If a frame exceeds the budget, fix the Console (row cost, notification rate) before closing the story and record the final numbers.
+- [X] T062 [US5] Make sure the buffer has a single entry point: the controller (T020), the generator (T035) and the game output already do; add a test in `test/process/providers_test.dart` that a line written by each of the three paths with an address in it reaches `ConsoleBuffer.lines` redacted, and that no code path adds to the buffer without `add`. T061 passes.
+- [ ] T063 [US5] (reference Mac) Run `dart run benchmark/console_throughput.dart` and the profile-mode frame check of quickstart §3.6 (`flutter run -d macos --profile`, a game printing 5,000 lines in one second): no frame over 16 ms while the Console follows the tail (SC-006). If a frame exceeds the budget, fix the Console (row cost, notification rate) before closing the story and record the final numbers. **Partly done (2026-10-25, Flutter 3.47.7, headless): `dart run benchmark/console_throughput.dart`: 50,000 lines in 10 s, 8.9 µs per line with redaction, 16.5 notifications a second (limit 20), 10,000 of 10,000 lines kept, no auth code kept. Not done: the profile-mode frame check of quickstart §3.6 (a game printing 5,000 lines in one second, DevTools timeline).**
 
 **Checkpoint**: one log shows everything, nothing in it can leak an address, and it holds 60 fps under a flood.
 
