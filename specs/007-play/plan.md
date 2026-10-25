@@ -33,7 +33,7 @@ exists today is printed by `example/`'s own code.
 
 ## Technical Context
 
-**Language/Version**: Dart SDK `^3.12.0`, Flutter 3.44.2 stable (pinned by CI and *Q94*; reference
+**Language/Version**: Dart SDK `^3.12.0`, Flutter 3.47.7 stable (pinned by CI and *Q94*; reference
 machine: macOS, Apple M4).
 
 **Primary Dependencies**:

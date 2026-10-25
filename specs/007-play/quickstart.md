@@ -4,7 +4,7 @@ Three layers, cheapest first. Layers 1 and 2 run in CI (macOS, Windows, Linux) w
 game or window. Layer 3 needs the reference Mac. Success criteria come from
 [spec.md](spec.md); contracts are in [contracts/](contracts/).
 
-**Prerequisites:** the repository at its root, `dart pub get` done once, Flutter 3.44.2 on `PATH`
+**Prerequisites:** the repository at its root, `dart pub get` done once, Flutter 3.47.7 on `PATH`
 (`export PATH="$PATH:/Users/salah/Library/flutter/bin"`), Xcode on the Mac.
 
 ## 1. Automated, no device
