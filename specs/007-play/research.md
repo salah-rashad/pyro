@@ -294,7 +294,7 @@ settings.
 
 | Item | How | If it differs |
 |---|---|---|
-| The build and success lines of `build_runner watch` on Flutter 3.44.2 (R9) | Run it in `example/`, save `test/fixtures/transcripts/` | Adjust the table; the classifier is data |
+| The build and success lines of `build_runner watch` on Flutter 3.47.7 (R9) | Run it in `example/`, save `test/fixtures/transcripts/` | Adjust the table; the classifier is data |
 | `flutter attach` as a stand-in IDE reproduces the DevFS clash (R5) | The latency benchmark with and without it | Use VS Code by hand for SC-002 |
 | `--project-root` with a symlink works with the current Flutter pin (§15.1) | The quickstart's run 1 | Re-check the private options; fall back as in §9.3 |
 | Platform channel for the macOS debug build needs no network-client entitlement beyond `example/`'s | The dry run in a third-party project | README recipe lists the entitlement if needed |

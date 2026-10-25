@@ -13,7 +13,7 @@
 - **[P]**: Can run in parallel (different files, no dependencies on incomplete tasks)
 - **[Story]**: Which user story this task belongs to (US1–US6)
 - File paths are under `apps/editor/` unless stated otherwise
-- **(reference Mac)** marks a task that needs the macOS machine, a game window and Xcode; every other task needs the Flutter SDK (3.44.2) but no device
+- **(reference Mac)** marks a task that needs the macOS machine, a game window and Xcode; every other task needs the Flutter SDK (3.47.7) but no device
 - Run Flutter and Dart with `export PATH="$PATH:/Users/salah/Library/flutter/bin"` first
 
 ---
@@ -89,7 +89,7 @@
 
 ### Tests for User Story 2 (write first, must fail)
 
-- [X] T026 [US2] (reference Mac) Record real `build_runner` output into `test/fixtures/transcripts/` from `example/` on Flutter 3.44.2 (stdout and stderr merged, in order): `build-runner-watch.txt` (start, one successful build, one build after saving an annotated file), `build-runner-takeover.txt` (a second `dart run build_runner build` while the watcher runs), `build-runner-stop.txt` (`dart run build_runner stop` while it runs), `build-runner-error.txt` (a syntax error in an annotated class, then the fix). Write the exact build-start, build-success and severe-level lines you saw at the top of `contracts/generator-supervisor.md` (research R9 left them open) and commit.
+- [X] T026 [US2] (reference Mac) Record real `build_runner` output into `test/fixtures/transcripts/` from `example/` on Flutter 3.47.7 (stdout and stderr merged, in order): `build-runner-watch.txt` (start, one successful build, one build after saving an annotated file), `build-runner-takeover.txt` (a second `dart run build_runner build` while the watcher runs), `build-runner-stop.txt` (`dart run build_runner stop` while it runs), `build-runner-error.txt` (a syntax error in an annotated class, then the fix). Write the exact build-start, build-success and severe-level lines you saw at the top of `contracts/generator-supervisor.md` (research R9 left them open) and commit.
 - [X] T027 [P] [US2] Write `test/helpers/hold_lock.dart` (a standalone `dart` program: opens `<arg>/.dart_tool/build/lock/build_runner.lock`, takes `FileLock.exclusive`, prints `locked`, waits for stdin to close) and `test/process/build_lock_test.dart`: `check` returns `held` while the helper process holds the lock, `free` after it exits, `absent` when the file does not exist and **creates no file** (assert the directory listing is unchanged, and that no `.requested` appears); the probe unlocks and closes in a `finally`. Real operating-system locks, no Flutter SDK.
 - [X] T028 [P] [US2] Write `test/process/generator_output_test.dart` over the T026 transcripts: each line maps to `building`, `succeeded`, `failed`, `takeover`, `waiting` or `other` as in `contracts/generator-supervisor.md`; unmatched lines are `other`; `Exiting as requested by another build_runner process.` and `Waiting for already-running build_runner.` are recognized.
 - [X] T029 [P] [US2] Write `test/project/build_runner_version_test.dart` first (must fail): `BuildRunnerVersion.of` reads `packages: build_runner: version` from `pubspec.lock` texts — `2.15.1` ok, `2.14.0` ok (the boundary), `2.13.9` too old, no `build_runner` entry → absent, a malformed lock → unknown with the parse reason; it never throws (FR-017).
