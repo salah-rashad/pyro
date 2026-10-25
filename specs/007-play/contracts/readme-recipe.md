@@ -5,11 +5,11 @@
 It is the stand-in for the "Add Pyro" flow (*Q82*). Every snippet is copied from `example/`, which
 the contract job already builds, so it cannot drift. Order and content:
 
-1. **What you need**: Flutter 3.44.2 or newer stable and Xcode (macOS); a Flame project with
+1. **What you need**: Flutter 3.47 or newer stable and Xcode (macOS); a Flame project with
    Flame ≥ 1.36; a Mac. What the recipe changes in the project: only the files it names.
 2. **Packages**: `pyro_annotations` and `pyro_runtime` as git dependencies on this repository
    (`git:` with `path: packages/<name>`), `pyro_generator` in `dev_dependencies`,
-   `build_runner` ≥ 2.14 (the ^2.15.1 that resolves on Flutter 3.44); plus the `dependency_overrides`
+   `build_runner` ≥ 2.14 (the ^2.15.1 that `example/` uses); plus the `dependency_overrides`
    they need while they are not on pub.dev (they depend on each other by version, found in spike
    #2's `gen_project.dart --pyro`). Exact text copied from `example/pubspec.yaml` and checked by
    the dry run.
