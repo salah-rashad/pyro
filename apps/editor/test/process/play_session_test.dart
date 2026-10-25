@@ -914,6 +914,75 @@ void main() {
       });
     });
 
+    test('an IDE\'s hot restart disarms it instead of failing it', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v2', report: 'reloaded');
+        // The IDE restarts the game: a new isolate, and no more output.
+        h.vm.isolateId = 'isolates/2';
+        for (final content in ['v3', 'v4', 'v5', 'v6']) {
+          save(h, async, content);
+        }
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        final notes = h.only<PlayOutput>().where(
+          (o) =>
+              o.source == PlayOutputSource.tool &&
+              o.line.contains('outside Pyro'),
+        );
+        expect(notes, hasLength(1), reason: 'said once');
+        // Scene reloads still go out.
+        expect(h.restarts.length, greaterThanOrEqualTo(5));
+      });
+    });
+
+    test('output that comes back arms it again', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        h.vm.isolateId = 'isolates/2';
+        save(h, async, 'v2');
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v3');
+        save(h, async, 'v4');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
+      });
+    });
+
+    test('Pyro\'s own restart is not an outside restart', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v2', report: 'reloaded');
+        unawaited(h.session.restart());
+        async.elapse(const Duration(seconds: 1));
+        h.vm.isolateId = 'isolates/2';
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v3');
+        save(h, async, 'v4');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
+        expect(
+          h.only<PlayOutput>().where((o) => o.line.contains('outside Pyro')),
+          isEmpty,
+        );
+      });
+    });
+
     test('restart() re-arms it', () {
       fakeAsync((async) {
         final h = announced(async);

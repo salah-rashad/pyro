@@ -47,6 +47,13 @@ Future<void> main(List<String> args) async {
     onStdoutLine: recorded.add,
   );
   final events = session.events.asBroadcastStream();
+  var failures = 0;
+  events.listen((e) {
+    if (e is PlayHotSwapFailed) failures++;
+    if (e is PlayOutput && e.line.contains('outside Pyro')) {
+      stdout.writeln('note: ${e.line}');
+    }
+  });
   Process? attach;
   var ok = true;
   try {
@@ -107,15 +114,20 @@ Future<void> main(List<String> args) async {
     attach.stdin.writeln('R');
     await Future<void>.delayed(const Duration(seconds: 6));
 
-    // A Scene save after the restart.
-    next = reloaded();
-    scene.writeAsStringSync(
-      sceneText.replaceFirst(_shipPosition, '"position": [420, 300]'),
-    );
-    final second = await next;
-    stdout.writeln('second save reloaded: $second');
-    ok = second;
-    await Future<void>.delayed(const Duration(seconds: 1));
+    // Scene saves after the restart: the daemon answers each, and Pyro must
+    // not call the Hot-swap failed because the game's output went quiet.
+    var allReloaded = true;
+    for (var x = 420; x <= 440; x += 10) {
+      next = reloaded();
+      scene.writeAsStringSync(
+        sceneText.replaceFirst(_shipPosition, '"position": [$x, 300]'),
+      );
+      allReloaded &= await next;
+      await Future<void>.delayed(const Duration(seconds: 4));
+    }
+    stdout.writeln('saves after the restart reloaded: $allReloaded');
+    stdout.writeln('hot-swap failures reported: $failures');
+    ok = allReloaded && failures == 0;
   } on Object catch (error) {
     ok = false;
     stderr.writeln('Recording failed: $error');

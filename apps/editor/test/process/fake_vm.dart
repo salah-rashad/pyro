@@ -16,6 +16,9 @@ final class FakeVm implements VmServiceLink {
   String? connectedTo;
 
   var connects = 0;
+
+  /// The isolate the view runs in; a test changes it to model a restart.
+  var isolateId = 'isolates/1';
   var closed = false;
 
   /// The connector to give `PlayClient`.
@@ -28,7 +31,7 @@ final class FakeVm implements VmServiceLink {
   @override
   Future<List<ViewInfo>> listViews() async {
     log.add('listViews');
-    return const [ViewInfo(id: 'view/1', isolateId: 'isolates/1')];
+    return [ViewInfo(id: 'view/1', isolateId: isolateId)];
   }
 
   @override

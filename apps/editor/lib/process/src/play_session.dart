@@ -123,6 +123,7 @@ final class PlaySession {
   VmServiceLink? _vm;
   String? _wsUri;
   String? _baseUri;
+  String? _isolateId;
   final _events = StreamController<PlayEvent>();
   final _stopwatch = clock.stopwatch()..start();
   final _pending = <int, Completer<DaemonResponse>>{};
@@ -199,6 +200,7 @@ final class PlaySession {
       );
     }
     _monitor.rearm();
+    _isolateId = null; // Pyro's own restart: a new isolate is expected.
     return _requestReload(const {}, full: true);
   }
 
@@ -317,10 +319,11 @@ final class PlaySession {
     _state = PlayState.reloading;
     _emit(PlayReloading(paths.toList()..sort()));
     final started = clock.now();
-    if (paths.isNotEmpty) _monitor.onBatch(paths);
+    final repointing = _repoint && paths.isNotEmpty && !full;
+    if (paths.isNotEmpty && !repointing) _monitor.onBatch(paths);
     final DaemonResponse response;
     try {
-      response = _repoint && paths.isNotEmpty && !full
+      response = repointing
           ? await _reloadScenes(paths)
           : await _sendRestart(full: full);
     } finally {
@@ -365,25 +368,58 @@ final class PlaySession {
   /// there yet, or an IDE recreated the game's file system), reload first so
   /// it is, point again, evict the changed Scenes and reload once more.
   Future<DaemonResponse> _reloadScenes(Set<String> paths) async {
-    if (await _repointAssets() != null) return _sendRestart(full: false);
+    // After the isolate check, which may have disarmed the monitor.
+    final view = await _findView();
+    _monitor.onBatch(paths);
+    if (view != null && await _setAssets(view)) {
+      return _sendRestart(full: false);
+    }
     final first = await _sendRestart(full: false);
     if (!_reloadResult(first, Duration.zero).ok) return first;
-    final view = await _repointAssets();
-    if (view != null) await _evict(view, paths);
+    final again = await _findView();
+    if (again != null && await _setAssets(again)) await _evict(again, paths);
     return _sendRestart(full: false);
   }
 
-  /// `_flutter.setAssetBundlePath` to the game's own `build/flutter_assets`;
-  /// the view on success, null when the VM service or the engine refused.
-  Future<ViewInfo?> _repointAssets() async {
+  /// The game's Flutter view, from the VM service; null when it can't be
+  /// reached.
+  ///
+  /// A view in another isolate than last time means the game was restarted
+  /// from outside Pyro (an IDE's hot restart). Its output then stops
+  /// reaching Pyro, so saves can no longer be confirmed: the Hot-swap monitor
+  /// forgets what the game announced rather than count silence as failure.
+  Future<ViewInfo?> _findView() async {
     final ws = _wsUri;
-    final base = _baseUri;
-    if (ws == null || base == null) return null;
+    if (ws == null) return null;
     try {
       final vm = _vm ??= await (_vmConnect ?? VmServiceLink.connect)(ws);
       final views = await vm.listViews();
       if (views.isEmpty) return null;
       final view = views.first;
+      final before = _isolateId;
+      _isolateId = view.isolateId;
+      if (before != null && before != view.isolateId) {
+        _monitor.rearm();
+        _output(
+          'The game was restarted from outside Pyro, so Pyro can no longer '
+          'confirm that saved Scenes reach it. Restart the game from Pyro to '
+          'get that back.',
+          PlayOutputSource.tool,
+        );
+      }
+      return view;
+    } on VmServiceCallFailed {
+      return null;
+    }
+  }
+
+  /// `_flutter.setAssetBundlePath` to the game's own `build/flutter_assets`;
+  /// whether the engine accepted it.
+  Future<bool> _setAssets(ViewInfo view) async {
+    final base = _baseUri;
+    final vm = _vm;
+    if (base == null || vm == null) return false;
+    try {
       await vm.setAssetBundlePath(
         viewId: view.id,
         isolateId: view.isolateId,
@@ -392,9 +428,9 @@ final class PlaySession {
           base.endsWith('/') ? base : '$base/',
         ).resolve('build/flutter_assets').toFilePath(),
       );
-      return view;
+      return true;
     } on VmServiceCallFailed {
-      return null;
+      return false;
     }
   }
 
