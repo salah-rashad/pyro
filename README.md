@@ -115,7 +115,8 @@ flutter create --platforms=macos .
 ```
 
 A debug build also needs permission to open the network port that Play and your IDE use to talk to
-the game. In `macos/Runner/DebugProfile.entitlements`, next to the keys already there:
+the game. A `macos/` folder made by `flutter create` already has it; if yours is older or was
+edited, make sure `macos/Runner/DebugProfile.entitlements` has this, next to the keys already there:
 
 ```xml
 <key>com.apple.security.network.server</key>
