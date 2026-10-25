@@ -230,9 +230,13 @@ class _PyroEditorWindowState extends ConsumerState<PyroEditorWindow> {
     if (!context.mounted) return AppExitResponse.cancel;
     // The game runs from the saved Scenes; it is only stopped once the user
     // has settled their unsaved changes.
-    return await confirmStopGame(context, container)
-        ? AppExitResponse.exit
-        : AppExitResponse.cancel;
+    if (!await confirmStopGame(context, container)) {
+      return AppExitResponse.cancel;
+    }
+    // Pyro's own build_runner would outlive the app and make the next run
+    // see an "External build_runner" (FR-022); an external one is left alone.
+    await container.read(generatorProvider)?.dispose();
+    return AppExitResponse.exit;
   }
 }
 

@@ -97,4 +97,44 @@ void main() {
     writeLock(_lock('2.14.0-dev.1'));
     expect(read(), isA<BuildRunnerOk>());
   });
+
+  group('in a pub workspace the lock is the workspace root\'s', () {
+    setUp(() {
+      fs.file('/ws/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: ws\nworkspace:\n  - game\n');
+      fs.file('/ws/game/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: game\nresolution: workspace\n');
+    });
+
+    BuildRunnerVersion readGame() =>
+        BuildRunnerVersion.of('/ws/game', fileSystem: fs);
+
+    test('a member without a lock of its own uses the root\'s', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('the root\'s lock is too old when it is', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.13.9'));
+      expect(readGame(), isA<BuildRunnerTooOld>());
+    });
+
+    test('the member\'s own lock wins', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.13.9'));
+      fs.file('/ws/game/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('a folder above that is not a workspace is not searched', () {
+      fs.file('/ws/pubspec.yaml').writeAsStringSync('name: plain\n');
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('no lock anywhere is absent', () {
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+  });
 }

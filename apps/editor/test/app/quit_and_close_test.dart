@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io' show ProcessSignal;
 import 'dart:ui' show AppExitResponse;
 
 import 'package:file/memory.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pyro/app/app.dart';
 import 'package:pyro/app/shell.dart';
@@ -16,6 +18,7 @@ import 'package:pyro_ui/pyro_ui.dart';
 import '../document/helpers/scenes.dart';
 import '../helpers/fixtures.dart';
 import '../process/fake_game.dart';
+import '../process/fake_generator.dart';
 
 const _scenePath = '/proj/assets/scenes/level1.scene.json';
 const _question = 'A game is running. Stop it and quit?';
@@ -55,7 +58,10 @@ void main() {
 
   /// The editor window over a fake game. Inside the test body: the fake
   /// process's streams must live in the test's zone.
-  Future<PlayController> pumpWindow(WidgetTester tester) async {
+  Future<PlayController> pumpWindow(
+    WidgetTester tester, {
+    List<Override> extra = const [],
+  }) async {
     game = LiveGame(fs);
     container = ProviderContainer(
       overrides: [
@@ -64,6 +70,7 @@ void main() {
         playDirectoryWatcherProvider.overrideWithValue(
           (_) => const Stream.empty(),
         ),
+        ...extra,
       ],
     );
     container
@@ -167,6 +174,60 @@ void main() {
       expect(sent(), contains('app.stop'));
       expect(controller.phase, PlayPhase.stopped);
       expect(game.process.exited, isTrue);
+      await finish(tester);
+    });
+
+    testWidgets('Pyro\'s own build_runner stops with the app', (tester) async {
+      fs
+          .file('/proj/pubspec.lock')
+          .writeAsStringSync(
+            'packages:\n  build_runner:\n    version: "2.15.1"\n'
+            '  pyro_runtime:\n    version: "0.0.1"\n',
+          );
+      final spawns = Spawns();
+      await pumpWindow(
+        tester,
+        extra: [
+          generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          buildLockProbeProvider.overrideWithValue(
+            FakeProbe()..fallback = LockProbeResult.free,
+          ),
+        ],
+      );
+      await tester.pump();
+      expect(spawns.processes, hasLength(1));
+      final response = tester.binding.handleRequestAppExit();
+      await tester.pump();
+      spawns.last.exit(-15);
+      expect(await response, AppExitResponse.exit);
+      expect(spawns.last.signals, contains(ProcessSignal.sigterm));
+      await finish(tester);
+    });
+
+    testWidgets('an external build_runner is left alone on quit', (
+      tester,
+    ) async {
+      fs
+          .file('/proj/pubspec.lock')
+          .writeAsStringSync(
+            'packages:\n  build_runner:\n    version: "2.15.1"\n'
+            '  pyro_runtime:\n    version: "0.0.1"\n',
+          );
+      final spawns = Spawns();
+      await pumpWindow(
+        tester,
+        extra: [
+          generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          buildLockProbeProvider.overrideWithValue(
+            FakeProbe()..fallback = LockProbeResult.held,
+          ),
+        ],
+      );
+      await tester.pump();
+      final response = tester.binding.handleRequestAppExit();
+      await tester.pump();
+      expect(await response, AppExitResponse.exit);
+      expect(spawns.processes, isEmpty);
       await finish(tester);
     });
 

@@ -293,6 +293,24 @@ void main() {
       await tester.pump(PlayDefaults.consoleNotify);
     });
 
+    testWidgets('the offer leaves with the game', (tester) async {
+      final controller = await arrangeWithImages(tester);
+      change(ship);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Restart game'), findsOneWidget);
+      game.process.exit(0);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Game stopped'), findsOneWidget);
+      expect(find.text('Image changed'), findsNothing);
+      expect(find.text('Restart game'), findsNothing);
+      expect(controller.phase, PlayPhase.stopped);
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
+
     testWidgets('a second change replaces the toast', (tester) async {
       final controller = await arrangeWithImages(tester);
       fs.file('$projectPath/assets/images/glow.png').writeAsStringSync('png');

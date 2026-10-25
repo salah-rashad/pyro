@@ -4,6 +4,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:pyro_runtime/pyro_runtime.dart';
 import 'package:yaml/yaml.dart';
 
+import 'pubspec_lock.dart';
+
 part 'runtime_compat.freezed.dart';
 
 /// The outcome of checking the project's `pyro_runtime` against Pyro's
@@ -65,9 +67,7 @@ Future<RuntimeCompatibility> checkRuntimeCompatibility(
   String projectRoot, {
   FileSystem fileSystem = const LocalFileSystem(),
 }) async {
-  final lock = fileSystem.file(
-    fileSystem.path.join(projectRoot, 'pubspec.lock'),
-  );
+  final lock = findPubspecLock(fileSystem, projectRoot);
   String? version;
   if (lock.existsSync()) {
     try {

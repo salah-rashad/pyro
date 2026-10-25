@@ -34,20 +34,33 @@ class _NoticeListener extends ConsumerStatefulWidget {
 
 class _NoticeListenerState extends ConsumerState<_NoticeListener> {
   StreamSubscription<PlayNotice>? _notices;
+  StreamSubscription<PlayPhase>? _phases;
   PlayController? _controller;
   final _shown = <Type, PrToastHandle>{};
 
   @override
   void dispose() {
     unawaited(_notices?.cancel());
+    unawaited(_phases?.cancel());
     super.dispose();
   }
 
   void _listenTo(PlayController? controller) {
     if (identical(controller, _controller)) return;
     unawaited(_notices?.cancel());
+    unawaited(_phases?.cancel());
     _controller = controller;
     _notices = controller?.notices.listen(_show);
+    _phases = controller?.phases.listen(_onPhase);
+  }
+
+  /// A notice that offers *Restart game* means nothing once the game is
+  /// gone: it leaves with the game, and the next run starts clean.
+  void _onPhase(PlayPhase phase) {
+    if (phase != PlayPhase.stopped) return;
+    for (final kind in [ImageChanged, HotSwapFailed]) {
+      _shown.remove(kind)?.dismiss();
+    }
   }
 
   void _show(PlayNotice notice) {
