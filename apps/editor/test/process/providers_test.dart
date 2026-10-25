@@ -138,6 +138,39 @@ void main() {
       );
     });
 
+    test('a link left by a Pyro that crashed is swept on open (R13)', () async {
+      container.dispose();
+      fs = MemoryFileSystem.test();
+      fs.directory('/a/macos').createSync(recursive: true);
+      fs.file('/a/lib/main.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('void main() {}');
+      final stale = await RunLink.create(
+        '/a',
+        supportDir: '/support',
+        fileSystem: fs,
+      );
+      expect(fs.link(stale!.path).existsSync(), isTrue);
+      container = ProviderContainer(
+        overrides: [
+          playFileSystemProvider.overrideWithValue(fs),
+          runLinkSupportProvider.overrideWithValue('/support'),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(playControllerProvider, (_, _) {});
+      container
+          .read(projectProvider.notifier)
+          .open(project('/a', sdk: _sdk, compatibility: _compatible));
+      container.read(playControllerProvider);
+      await pumpEventQueue();
+      expect(fs.link(stale.path).existsSync(), isFalse);
+      expect(fs.file('/a/lib/main.dart').readAsStringSync(), 'void main() {}');
+      expect(fs.directory('/a/macos').existsSync(), isTrue);
+      // Nothing says "Running": a new Pyro knows no game.
+      expect(container.read(playControllerProvider)!.phase, PlayPhase.stopped);
+    });
+
     test('is recreated per project and disposed on close', () async {
       final notifier = container.read(projectProvider.notifier);
       notifier.open(project('/a', sdk: _sdk, compatibility: _compatible));

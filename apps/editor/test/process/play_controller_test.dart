@@ -10,9 +10,27 @@ import 'package:pyro/process/process.dart';
 import 'fake_process.dart';
 import 'fake_vm.dart';
 
+/// The watcher of the images in use, recording what the controller asks.
+final class FakeImages implements ImageWatching {
+  void Function(Set<String> paths)? onChanged;
+  var starts = 0;
+  var clears = 0;
+  var closed = false;
+
+  @override
+  Future<void> start() async => starts++;
+
+  @override
+  Future<void> clear() async => clears++;
+
+  @override
+  void close() => closed = true;
+}
+
 /// A controller over a fake `flutter run` that replays recordings.
 final class Harness {
   Harness({this.block, bool link = false, this.linkFails = false}) {
+    fs.directory('$projectPath/lib').createSync(recursive: true);
     controller = PlayController(
       projectPath: projectPath,
       console: console,
@@ -22,6 +40,19 @@ final class Harness {
                 ? null
                 : RunLink.create(path, supportDir: '/support', fileSystem: fs)
           : null,
+      makeCodeWatcher: (onReload) => CodeWatcher(
+        fileSystem: fs,
+        projectPath: projectPath,
+        watch: (_) => codeChanges.stream,
+        generatorState: () => generator,
+        generatorStates: generatorStates.stream,
+        onReload: onReload,
+      ),
+      makeImageWatcher: (onChanged) {
+        final images = FakeImages()..onChanged = onChanged;
+        imageWatchers.add(images);
+        return images;
+      },
       start: (path, {runLink}) {
         starts++;
         return PlayClient(
@@ -43,6 +74,12 @@ final class Harness {
   // Closed with the test's zone; nothing to release.
   // ignore: close_sinks
   final changes = StreamController<FileSystemEvent>.broadcast();
+  // ignore: close_sinks
+  final codeChanges = StreamController<FileSystemEvent>.broadcast();
+  // ignore: close_sinks
+  final generatorStates = StreamController<GeneratorState>.broadcast();
+  var generator = const GeneratorState(GeneratorStatus.upToDate);
+  final imageWatchers = <FakeImages>[];
   final process = FakeProcess();
   late final starter = FakeStarter(process);
   final console = ConsoleBuffer();
@@ -82,6 +119,14 @@ final class Harness {
     process.queueLines(recorded(name));
     process.emitUntil((line) => line.contains('"app.started"'));
   }
+
+  /// The requests of method [method] the game was sent.
+  List<Map<String, Object?>> requestsOf(String method) =>
+      process.requests.where((r) => r['method'] == method).toList();
+
+  void saveCode(String relative) => codeChanges.add(
+    FileSystemModifyEvent('$projectPath/$relative', false, true),
+  );
 
   Iterable<ConsoleLine> linesFrom(ConsoleSource source) =>
       console.lines.where((line) => line.source == source);
@@ -616,6 +661,159 @@ void main() {
         for (final shown in everythingShown(h)) {
           expect(shown, isNot(contains(code)));
         }
+      });
+    });
+  });
+
+  group('code reloads and changed images while the game runs', () {
+    Harness running(FakeAsync async) {
+      final h = Harness()..answerRequests();
+      unawaited(h.controller.play());
+      async.flushMicrotasks();
+      h.startedFrom('run-scene-save.txt');
+      async.flushMicrotasks();
+      expect(h.controller.phase, PlayPhase.running);
+      return h;
+    }
+
+    test('nothing is watched until the game runs', () {
+      fakeAsync((async) {
+        final h = Harness()..answerRequests();
+        expect(h.codeChanges.hasListener, isFalse);
+        unawaited(h.controller.play());
+        async.flushMicrotasks();
+        expect(h.controller.phase, PlayPhase.starting);
+        expect(h.codeChanges.hasListener, isFalse);
+        expect(h.imageWatchers, isEmpty);
+        h.startedFrom('run-scene-save.txt');
+        async.flushMicrotasks();
+        expect(h.codeChanges.hasListener, isTrue);
+        expect(h.imageWatchers.single.starts, 1);
+      });
+    });
+
+    test('a Dart save reloads the code, without the Scene re-point', () {
+      fakeAsync((async) {
+        final h = running(async);
+        h.saveCode('lib/main.dart');
+        async.elapse(const Duration(milliseconds: 150));
+        final restarts = h.requestsOf('app.restart');
+        expect(restarts, hasLength(1));
+        expect((restarts.single['params']! as Map)['fullRestart'], false);
+        expect(h.vm.log, isEmpty, reason: 'no listViews, no re-point');
+        expect(
+          h.linesFrom(ConsoleSource.pyro).map((l) => l.text),
+          contains('Reloading the game…'),
+        );
+      });
+    });
+
+    test('the reload waits for the generator through its state', () {
+      fakeAsync((async) {
+        final h = running(async);
+        h.generator = const GeneratorState(GeneratorStatus.generating);
+        h.saveCode('lib/main.dart');
+        async.elapse(const Duration(seconds: 5));
+        expect(h.requestsOf('app.restart'), isEmpty);
+        h.generator = const GeneratorState(GeneratorStatus.upToDate);
+        h.generatorStates.add(h.generator);
+        async.flushMicrotasks();
+        expect(h.requestsOf('app.restart'), hasLength(1));
+      });
+    });
+
+    test('a save after the stop reloads nothing', () {
+      fakeAsync((async) {
+        final h = running(async);
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        expect(h.controller.phase, PlayPhase.stopped);
+        expect(h.codeChanges.hasListener, isFalse);
+        final before = h.requestsOf('app.restart').length;
+        h.saveCode('lib/main.dart');
+        async.elapse(const Duration(seconds: 5));
+        expect(h.requestsOf('app.restart'), hasLength(before));
+        expect(h.imageWatchers.single.closed, isTrue);
+      });
+    });
+
+    test('the game ending on its own closes the watchers', () {
+      fakeAsync((async) {
+        final h = running(async);
+        h.process.exit(1);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.codeChanges.hasListener, isFalse);
+        expect(h.imageWatchers.single.closed, isTrue);
+      });
+    });
+
+    test('disposing the controller (the project closes) stops the game', () {
+      fakeAsync((async) {
+        final h = running(async);
+        unawaited(h.controller.dispose());
+        async.elapse(const Duration(seconds: 2));
+        expect(h.controller.phase, PlayPhase.stopped);
+        expect(
+          h.process.requests.map((r) => r['method']),
+          contains('app.stop'),
+        );
+        expect(h.codeChanges.hasListener, isFalse);
+        expect(h.imageWatchers.single.closed, isTrue);
+      });
+    });
+
+    test('a changed image is a notice and a Console line', () {
+      fakeAsync((async) {
+        final h = running(async);
+        h.imageWatchers.single.onChanged!({'assets/images/ship.png'});
+        async.flushMicrotasks();
+        final notice = h.notices.whereType<ImageChanged>().single;
+        expect(notice.paths, {'assets/images/ship.png'});
+        expect('$notice', 'Image changed');
+        expect(
+          h.linesFrom(ConsoleSource.pyro).map((l) => l.text),
+          contains(contains('assets/images/ship.png')),
+        );
+        // Nothing restarts by itself.
+        expect(h.requestsOf('app.restart'), isEmpty);
+      });
+    });
+
+    test('a second change adds to the notice, and a restart clears it', () {
+      fakeAsync((async) {
+        final h = running(async);
+        final images = h.imageWatchers.single;
+        images.onChanged!({'assets/images/ship.png'});
+        images.onChanged!({'assets/images/glow.png'});
+        async.flushMicrotasks();
+        expect(h.notices.whereType<ImageChanged>().last.paths, {
+          'assets/images/ship.png',
+          'assets/images/glow.png',
+        });
+        unawaited(h.controller.restartGame());
+        async.elapse(const Duration(seconds: 1));
+        expect(images.clears, 1);
+        expect(
+          (h.requestsOf('app.restart').single['params']! as Map)['fullRestart'],
+          true,
+        );
+        images.onChanged!({'assets/images/bg.png'});
+        async.flushMicrotasks();
+        expect(h.notices.whereType<ImageChanged>().last.paths, {
+          'assets/images/bg.png',
+        });
+      });
+    });
+
+    test('an image change while no game runs is ignored', () {
+      fakeAsync((async) {
+        final h = running(async);
+        final images = h.imageWatchers.single;
+        unawaited(h.controller.stop());
+        async.elapse(const Duration(seconds: 2));
+        images.onChanged!({'assets/images/ship.png'});
+        async.flushMicrotasks();
+        expect(h.notices.whereType<ImageChanged>(), isEmpty);
       });
     });
   });

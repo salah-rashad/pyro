@@ -9,7 +9,7 @@ import '../process/providers.dart';
 
 /// Shows the running game's notices as toasts (spec 007, FR-014, FR-011;
 /// contracts/play-orchestration.md, "Notices"): the game exited by itself,
-/// or Scene saves stopped reaching it. A notice replaces the previous one of
+/// Scene saves stopped reaching it, or an image it uses changed. A notice replaces the previous one of
 /// its kind rather than stacking.
 class PlayNotices extends StatelessWidget {
   /// Wraps [child] with a toast host and the notice listener.
@@ -64,6 +64,21 @@ class _NoticeListenerState extends ConsumerState<_NoticeListener> {
       message: exitCode == 0
           ? 'The game was closed.'
           : 'The game exited with code $exitCode.',
+    ),
+    ImageChanged(:final paths) => PrToastData(
+      kind: PrToastKind.warning,
+      title: 'Image changed',
+      message: paths.length == 1
+          ? '${paths.single} changed. The game shows the old image until it '
+                'restarts.'
+          : '${paths.length} images changed. The game shows the old ones '
+                'until it restarts.',
+      actions: [
+        PrToastAction(
+          label: 'Restart game',
+          onPressed: () => unawaited(_controller?.restartGame()),
+        ),
+      ],
     ),
     HotSwapFailed() => PrToastData(
       kind: PrToastKind.warning,

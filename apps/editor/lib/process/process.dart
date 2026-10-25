@@ -7,6 +7,7 @@
 library;
 
 export 'src/build_lock.dart' show BuildLockProbe, LockProbeResult;
+export 'src/code_watcher.dart' show CodeWatcher;
 export 'src/console_buffer.dart' show ConsoleBuffer;
 export 'src/console_line.dart' show ConsoleLine, ConsoleSeverity, ConsoleSource;
 export 'src/generator_output.dart'
@@ -14,12 +15,16 @@ export 'src/generator_output.dart'
 export 'src/generator_state.dart' show GeneratorState, GeneratorStatus;
 export 'src/generator_supervisor.dart' show GeneratorSupervisor;
 export 'src/hot_swap_monitor.dart' show HotSwapMonitor;
+export 'src/image_watching.dart' show ImageWatching;
 export 'src/play_block.dart' show PlayBlock;
 export 'src/play_client.dart' show PlayClient, ProcessStarter;
 export 'src/play_controller.dart'
     show
+        CodeWatcherMaker,
         GameStopped,
         HotSwapFailed,
+        ImageChanged,
+        ImageWatcherMaker,
         PlayController,
         PlayNotice,
         PlayPhase,

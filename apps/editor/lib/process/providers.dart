@@ -15,11 +15,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../app/app.dart';
 import '../project/project.dart';
 import 'process.dart';
+import 'src/image_use.dart';
 
 /// The file system Play reads the project through; tests inject a memory
 /// one.
 final playFileSystemProvider = Provider<FileSystem>(
   (ref) => const LocalFileSystem(),
+);
+
+/// Watches directories for the Scene, code and image watchers; the app's is
+/// `Directory.watch` (FSEvents on macOS). Tests inject a stream they drive.
+final playDirectoryWatcherProvider = Provider<DirectoryWatcher>(
+  (ref) => watchRecursively,
 );
 
 /// Where the run links live: Pyro's application-support folder, which the
@@ -33,6 +40,7 @@ final playStarterProvider = Provider<PlayStarter>((ref) {
   final client = PlayClient(
     flutter: flutterExecutable(sdk ?? SdkInfo.none),
     fileSystem: ref.watch(playFileSystemProvider),
+    watchDirectory: ref.watch(playDirectoryWatcherProvider),
   );
   return client.start;
 });
@@ -44,10 +52,41 @@ final playControllerProvider = Provider<PlayController?>((ref) {
   if (project == null) return null;
   final fs = ref.watch(playFileSystemProvider);
   final support = ref.watch(runLinkSupportProvider);
+  final console = ref.watch(consoleBufferProvider);
+  final watch = ref.watch(playDirectoryWatcherProvider);
+  void note(String text) => console.add(
+    text,
+    source: ConsoleSource.pyro,
+    severity: ConsoleSeverity.warning,
+  );
+  // A link left by a Pyro that crashed is removed now; nothing about a run
+  // is persisted, so no stale "Running" can show (research R13).
+  if (support != null) {
+    unawaited(RunLink.sweep(project.root, supportDir: support, fileSystem: fs));
+  }
   final controller = PlayController(
     projectPath: project.root,
-    console: ref.watch(consoleBufferProvider),
+    console: console,
     start: ref.watch(playStarterProvider),
+    makeCodeWatcher: (onReload) {
+      // Read when the game runs, so Play alone doesn't start the generator.
+      final generator = ref.read(generatorProvider);
+      return CodeWatcher(
+        fileSystem: fs,
+        projectPath: project.root,
+        watch: watch,
+        generatorState: () => generator?.state ?? GeneratorState.initial,
+        generatorStates: generator?.states ?? const Stream.empty(),
+        onReload: onReload,
+        onNote: note,
+      );
+    },
+    makeImageWatcher: (onChanged) => ImageUse(
+      fileSystem: fs,
+      projectPath: project.root,
+      watch: watch,
+      onChanged: onChanged,
+    ),
     makeRunLink: support == null
         ? null
         : (path) => RunLink.create(path, supportDir: support, fileSystem: fs),

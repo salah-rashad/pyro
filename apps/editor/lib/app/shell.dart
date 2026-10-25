@@ -227,8 +227,32 @@ class _PyroEditorWindowState extends ConsumerState<PyroEditorWindow> {
           await discardScene(container, scene.sceneId);
       }
     }
-    return AppExitResponse.exit;
+    if (!context.mounted) return AppExitResponse.cancel;
+    // The game runs from the saved Scenes; it is only stopped once the user
+    // has settled their unsaved changes.
+    return await confirmStopGame(context, container)
+        ? AppExitResponse.exit
+        : AppExitResponse.cancel;
   }
+}
+
+/// Closes the open project, after asking to stop a running game (spec 007,
+/// FR-015). The entry point of a *Close project* command: stopping happens
+/// before the project goes, so the controller isn't torn down under a
+/// running game. Returns false when the user said no.
+Future<bool> closeProject(
+  BuildContext context,
+  ProviderContainer container,
+) async {
+  if (!await confirmStopGame(
+    context,
+    container,
+    reason: StopGameFor.closeProject,
+  )) {
+    return false;
+  }
+  container.read(projectProvider.notifier).close();
+  return true;
 }
 
 /// Closes [sceneId]'s tab discarding unsaved changes. The document
