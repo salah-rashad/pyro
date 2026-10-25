@@ -19,7 +19,7 @@ build yet).
 
 ### 1. What you need
 
-- A Mac with Flutter 3.44.2 or newer (stable) and Xcode.
+- A Mac with Flutter 3.47 or newer (stable) and Xcode.
 - A Flame game, with Flame 1.36 or newer.
 
 The steps below change only the files they name.

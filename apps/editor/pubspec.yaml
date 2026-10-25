@@ -6,14 +6,14 @@ version: 0.0.1+1
 
 environment:
   sdk: ^3.12.0
-  flutter: ">=3.44.0"
+  flutter: ">=3.47.0"
 
 resolution: workspace
 
 # Never depends on pyro_generator (project plan §5). freezed is for the
 # Document model's values (spec 002); Riverpod is added for the providers of
-# v0.1 work item 1. Versions are the newest that resolve on Flutter 3.44.2
-# (spec 002, research R1). flame_tiled joins when the first code uses it.
+# v0.1 work item 1. Versions are the newest that resolved on Flutter 3.44.2
+# when they were chosen (spec 002, research R1). flame_tiled joins when the first code uses it.
 dependencies:
   clock: ^1.1.2
   crypto: ^3.0.6
