@@ -20,7 +20,7 @@ env:
   # update-goldens.yml (then refresh the goldens with it); Flutter
   # 3.44.x caps build_runner at 2.15.1 (Q76), which matters once the contract
   # job runs the generator.
-  FLUTTER_VERSION: "3.44.2"
+  FLUTTER_VERSION: "3.47.7"
 # Linux jobs pin ubuntu-24.04 rather than ubuntu-latest, which moves to
 # Ubuntu 26 from 2026-10-19 (the desktop build's apt packages, e.g.
 # libstdc++-12-dev, are named per release). macOS jobs pin macos-26 rather

@@ -40,6 +40,10 @@ cd apps/editor
 dart run bin/play.dart ../../example
 ```
 
+In a debug build the Runtime prints one line per load and Hot-swap: `[pyro] Scene loaded: <path>`,
+`[pyro] Scene reloaded: <path>`, or `[pyro] Scene not reloaded: <path>: <reason>`. Pyro reads them to
+know a Hot-swap reached the game.
+
 ## Regenerate
 
 After changing an annotated class:

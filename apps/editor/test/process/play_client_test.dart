@@ -208,11 +208,26 @@ void main() {
   });
 
   test('lib/process/ imports no Flutter and touches no file directly', () {
+    // providers.dart is the Riverpod layer beside the units (spec 007,
+    // plan.md): nothing else in lib/process/, and not bin/play.dart,
+    // imports it.
     final sources = Directory('lib/process')
         .listSync(recursive: true)
         .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'));
+        .where((f) => f.path.endsWith('.dart'))
+        .where(
+          (f) => !f.path
+              .replaceAll('\\', '/')
+              .endsWith('lib/process/providers.dart'),
+        );
     expect(sources, isNotEmpty);
+    for (final source in [...sources, File('bin/play.dart')]) {
+      expect(
+        source.readAsStringSync(),
+        isNot(contains('providers.dart')),
+        reason: source.path,
+      );
+    }
     for (final source in sources) {
       final text = source.readAsStringSync();
       expect(text, isNot(contains('package:flutter')), reason: source.path);

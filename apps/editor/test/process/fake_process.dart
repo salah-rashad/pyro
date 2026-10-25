@@ -27,6 +27,10 @@ MemoryFileSystem projectFileSystem({
 List<String> transcript(String name) =>
     File('test/fixtures/daemon/$name').readAsLinesSync();
 
+/// Reads a spec 007 recording from `test/fixtures/transcripts/`.
+List<String> recorded(String name) =>
+    File('test/fixtures/transcripts/$name').readAsLinesSync();
+
 /// A `flutter run --machine` stand-in: its stdout replays transcript lines
 /// when the test says so, its stdin records the client's requests, and it
 /// exits only when told to.
@@ -70,6 +74,9 @@ final class FakeProcess implements Process {
 
   /// Queues [name]'s lines after whatever is queued.
   void queue(String name) => _queued.addAll(transcript(name));
+
+  /// Queues [lines] after whatever is queued.
+  void queueLines(Iterable<String> lines) => _queued.addAll(lines);
 
   /// Writes every queued line to stdout.
   void emitAll() {

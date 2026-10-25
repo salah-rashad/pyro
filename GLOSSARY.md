@@ -145,6 +145,22 @@ _Avoid_: Run game, launch
 One run of the developer's game through Pyro's Play client, from starting `flutter run` to the game's exit; it reports the game's output and Hot-swaps its saved Scenes.
 _Avoid_: run, launch
 
+**Console**:
+Pyro's one log of the generator's, the game's and Pyro's own lines for the open project, with debugger auth codes masked; it keeps the last 10,000 lines.
+_Avoid_: log panel, output
+
+**Run link**:
+A symlink to the project under Pyro's application support, which the running game names its files by, so an IDE attached to the game cannot clash with Pyro's own copy. Pyro makes it when Play starts and removes it when the game stops; it never writes inside the project.
+_Avoid_: project link, shortcut
+
+**Debugger address**:
+The web address, with its authentication code, that an IDE uses to attach its debugger to the running game. It gives full control of the game, so Pyro keeps it in memory, copies it only when the developer presses Attach, and never writes it to the Console, a log or a file. Every run has its own.
+_Avoid_: debug URL, VM service URL
+
+**External build_runner**:
+A `build_runner` that Pyro did not start, such as one the developer runs in a terminal or an IDE. Pyro sees it only by its lock, shows "External build_runner", never stops it, and starts its own run again once the lock is free.
+_Avoid_: user generator, foreign build
+
 **Contract test**:
 The CI check that `example/`'s generated Registry and Manifest are committed and reviewed, and that every `example/` Scene loads with the real Registry, with no error and no warning.
 
@@ -154,6 +170,9 @@ Connecting the developer's IDE debugger to a game Pyro is already running.
 **Hot-swap**:
 Replacing a Scene inside a running game with its newly saved version, without restarting the game. It happens only when the Scene's content changed.
 _Avoid_: Scene reload, live reload
+
+**Hot-swap report**:
+The one line the Runtime prints in a debug build when a Scene loads (`[pyro] Scene loaded: <path>`), is Hot-swapped (`reloaded`), or fails to Hot-swap (`not reloaded`); Pyro reads it to know a Hot-swap reached the game.
 
 **Stale reference**:
 A component of a Node that a Hot-swap removed, still held by game code; debug builds warn the first time one is moved or added back.

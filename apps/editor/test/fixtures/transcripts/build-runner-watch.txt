@@ -1,0 +1,14 @@
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+  0s pyro_generator:pyro_scan on 9 inputs: 8 skipped, 1 not triggered
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 skipped
+  Built with build_runner/aot in 1s; wrote 0 outputs.
+
+Starting build #2.
+
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+  3s pyro_generator:pyro_scan on 9 inputs: 1 same; spent 2s analyzing; lib/code_marker.dart
+  3s pyro_generator:pyro_scan on 9 inputs: 8 skipped, 1 same; spent 2s analyzing
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 skipped
+  Built with build_runner/aot in 3s; wrote 1 output.

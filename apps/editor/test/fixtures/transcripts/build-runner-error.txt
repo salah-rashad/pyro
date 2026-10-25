@@ -1,0 +1,27 @@
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+  2s pyro_generator:pyro_scan on 9 inputs: 1 same; spent 2s analyzing; lib/code_marker.dart
+  2s pyro_generator:pyro_scan on 9 inputs: 8 skipped, 1 same; spent 2s analyzing
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 skipped
+  Built with build_runner/aot in 3s; wrote 1 output.
+
+Starting build #2.
+
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+E pyro_generator:pyro_scan on lib/behaviors/spin.dart:
+  11:27: Expected an identifier.
+  0s pyro_generator:pyro_scan on 9 inputs: 1 no-op; lib/code_marker.dart
+  0s pyro_generator:pyro_scan on 9 inputs: 8 skipped, 1 no-op
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 output
+  Failed to build with build_runner/aot in 0s; wrote 2 outputs.
+
+Starting build #3.
+
+  0s pyro_generator:pyro_scan on 9 inputs; lib/behaviors/spin.dart
+  0s pyro_generator:pyro_scan on 9 inputs: 1 output; lib/code_marker.dart
+  0s pyro_generator:pyro_scan on 9 inputs: 8 skipped, 1 output
+  0s pyro_generator:pyro_aggregate on 1 input; lib/$lib$
+  0s pyro_generator:pyro_aggregate on 1 input: 1 output
+  Built with build_runner/aot in 0s; wrote 3 outputs.
+Exiting as requested by another build_runner process.

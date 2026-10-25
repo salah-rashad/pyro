@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pyro/process/process.dart';
 
 import 'fake_process.dart';
+import 'fake_vm.dart';
 
 /// The known fake auth code in every transcript (research R5).
 const authCode = 'AbCdEf123456';
@@ -25,6 +26,9 @@ final class Harness {
   final FakeAsync async;
   final MemoryFileSystem fs;
   final process = FakeProcess();
+  late final starter = FakeStarter(process);
+  final vm = FakeVm();
+  RunLink? runLink;
   // Closed with the test's zone; nothing to release.
   // ignore: close_sinks
   final changes = StreamController<FileSystemEvent>.broadcast();
@@ -32,14 +36,25 @@ final class Harness {
   late final PlaySession session;
   var closed = false;
 
-  /// Spawns the session and listens to it.
-  void start() {
+  /// Spawns the session and listens to it; with [link], through a run link.
+  void start({bool link = false}) {
+    if (link) {
+      unawaited(
+        RunLink.create(
+          projectPath,
+          supportDir: '/support',
+          fileSystem: fs,
+        ).then((l) => runLink = l),
+      );
+      async.flushMicrotasks();
+    }
     unawaited(
       PlayClient(
-        startProcess: FakeStarter(process).call,
+        startProcess: starter.call,
         fileSystem: fs,
         watchDirectory: (_) => changes.stream,
-      ).start(projectPath).then((s) {
+        vmConnect: vm.connect,
+      ).start(projectPath, runLink: runLink).then((s) {
         session = s;
         s.events.listen(events.add, onDone: () => closed = true);
       }),
@@ -48,8 +63,8 @@ final class Harness {
   }
 
   /// Spawns the session and replays `start.txt` to `app.started`.
-  void startGame() {
-    start();
+  void startGame({bool link = false}) {
+    start(link: link);
     process.play('start.txt');
     async.flushMicrotasks();
   }
@@ -62,6 +77,7 @@ final class Harness {
   }) {
     process.onRequest = (request) {
       if (request['method'] != 'app.restart') return;
+      vm.log.add('app.restart');
       Timer(delay, () {
         process.emitLine(
           '[{"id":${request['id']},"result":{"code":$code,"message":"$message"}}]',
@@ -519,6 +535,467 @@ void main() {
               .having((e) => e.requested, 'requested', false),
         );
         expect(h.changes.hasListener, isFalse);
+      });
+    });
+  });
+
+  group('with a run link (spec 007)', () {
+    /// The game's DevFS folder, as `app.debugPort` reports it.
+    final baseUri = RegExp(
+      r'"baseUri":"([^"]*)"',
+    ).firstMatch(transcript('start.txt').join('\n'))!.group(1)!;
+    // The engine takes a file path, not a URI.
+    final assets = Uri.parse(
+      baseUri,
+    ).resolve('build/flutter_assets').toFilePath();
+    const sceneAsset = 'assets/scenes/level1.scene.json';
+
+    test('spawns with --project-root, in the real project, with no target', () {
+      fakeAsync((async) {
+        final h = Harness(async)..startGame(link: true);
+        expect(h.starter.arguments, [
+          'run',
+          '--machine',
+          '-d',
+          'macos',
+          '--debug',
+          '--project-root',
+          h.runLink!.path,
+        ]);
+        expect(h.starter.workingDirectory, projectPath);
+        expect(h.starter.arguments, isNot(contains('--target')));
+        expect(h.starter.arguments, isNot(contains('-t')));
+        expect(
+          (h.events.first as PlayStarting).command,
+          endsWith('--project-root ${h.runLink!.path}'),
+        );
+      });
+    });
+
+    test(
+      'without a run link the spawn is spec 005\'s and nothing repoints',
+      () {
+        fakeAsync((async) {
+          final h = Harness(async)
+            ..startGame()
+            ..answerReloads();
+          expect(h.starter.arguments, [
+            'run',
+            '--machine',
+            '-d',
+            'macos',
+            '--debug',
+          ]);
+          h.save();
+          async.elapse(const Duration(milliseconds: 150));
+          expect(h.vm.log, ['app.restart']);
+          expect(h.vm.connects, 0);
+        });
+      },
+    );
+
+    test('a Scene reload repoints the assets first', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.save();
+        async.elapse(const Duration(milliseconds: 150));
+        expect(h.vm.log, [
+          'listViews',
+          'setAssetBundlePath $assets',
+          'app.restart',
+        ]);
+        expect(h.only<PlayReloading>(), hasLength(1));
+        expect(h.only<PlayReloaded>(), hasLength(1));
+      });
+    });
+
+    test('a rejected repoint restarts, repoints again, evicts, restarts', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.vm.rejectSetPath = 1;
+        h.save();
+        async.elapse(const Duration(milliseconds: 150));
+        expect(h.vm.log, [
+          'listViews',
+          'setAssetBundlePath $assets',
+          'app.restart',
+          'listViews',
+          'setAssetBundlePath $assets',
+          'evict $sceneAsset',
+          'app.restart',
+        ]);
+        expect(h.only<PlayReloading>(), hasLength(1), reason: 'one pair');
+        expect(h.only<PlayReloaded>(), hasLength(1));
+        expect(h.only<PlayReloadFailed>(), isEmpty);
+        expect(h.session.state, PlayState.running);
+      });
+    });
+
+    test('a code-only reload sends app.restart alone', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        unawaited(h.session.reload());
+        async.flushMicrotasks();
+        expect(h.vm.log, ['app.restart']);
+        expect(h.vm.connects, 0, reason: 'no connection for code');
+      });
+    });
+
+    test('reloads run one at a time with one queued', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads(delay: const Duration(milliseconds: 500));
+        h.save();
+        async.elapse(const Duration(milliseconds: 160));
+        expect(h.vm.log.where((e) => e == 'app.restart'), hasLength(1));
+        // Two more saves while the first is in flight: one queued reload.
+        h.save();
+        async.elapse(const Duration(milliseconds: 160));
+        h.save();
+        async.elapse(const Duration(milliseconds: 160));
+        expect(h.vm.log.where((e) => e == 'app.restart'), hasLength(1));
+        async.elapse(const Duration(seconds: 2));
+        expect(h.vm.log, [
+          'listViews',
+          'setAssetBundlePath $assets',
+          'app.restart',
+          'listViews',
+          'setAssetBundlePath $assets',
+          'app.restart',
+        ]);
+        expect(h.only<PlayReloaded>(), hasLength(2));
+      });
+    });
+
+    test('restart() is a full restart that is not repointed', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        unawaited(h.session.restart());
+        async.elapse(const Duration(milliseconds: 1));
+        expect(h.restarts.single['params'], containsPair('fullRestart', true));
+        expect(h.vm.log, ['app.restart']);
+        expect(h.only<PlayReloading>().single.paths, isEmpty);
+        expect(h.only<PlayReloaded>(), hasLength(1));
+        expect(h.session.state, PlayState.running);
+      });
+    });
+
+    test('device events change nothing and print nothing', () {
+      fakeAsync((async) {
+        final h = Harness(async)..startGame(link: true);
+        final before = h.events.length;
+        for (final name in [
+          'device.added',
+          'device.removed',
+          'device.changed',
+        ]) {
+          h.process.emitLine('[{"event":"$name","params":{"id":"macos"}}]');
+        }
+        async.flushMicrotasks();
+        expect(h.events, hasLength(before));
+        expect(h.session.state, PlayState.running);
+      });
+    });
+
+    test('a hot restart seen from an IDE is not a stop', () {
+      fakeAsync((async) {
+        final h = Harness(async)..startGame(link: true);
+        final before = h.events.length;
+        h.process.emitLine(
+          '[{"event":"app.progress","params":{"appId":"$appId",'
+          '"id":"hot.restart","progressId":"hot.restart","finished":true}}]',
+        );
+        async.flushMicrotasks();
+        expect(h.events.whereType<PlayStopped>(), isEmpty);
+        expect(h.events.whereType<PlayFailed>(), isEmpty);
+        expect(h.session.state, PlayState.running);
+        expect(h.events.length, before);
+      });
+    });
+  });
+
+  group('the recorded run with an IDE attached', () {
+    test('a hot restart by the IDE is not a stop and prints no auth code', () {
+      fakeAsync((async) {
+        final h = Harness(async)..start(link: true);
+        h.process.queueLines(recorded('ide-attached.txt'));
+        // Everything up to the daemon's own `Application finished.`.
+        h.process.emitUntil((line) => line.contains('pyro] Scene reloaded'));
+        h.process.emitUntil((line) => line.contains('"id":3'));
+        async.flushMicrotasks();
+        expect(h.session.state, PlayState.running);
+        expect(h.events.whereType<PlayStopped>(), isEmpty);
+        expect(h.events.whereType<PlayFailed>(), isEmpty);
+        for (final event in h.events) {
+          expect('$event', isNot(contains('ws://')));
+        }
+        h.process.emitAll();
+        h.process.exit(0);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.events.whereType<PlayStopped>(), hasLength(1));
+      });
+    });
+  });
+
+  group('the debugger address (FR-024, FR-028)', () {
+    String debugPort(String code, {int port = 5001}) =>
+        '[{"event":"app.debugPort","params":{"appId":"$appId","port":$port,'
+        '"wsUri":"ws://127.0.0.1:$port/$code=/ws","baseUri":"file:///p/"}}]';
+
+    test('is null until the game reports it, and again after the end', () {
+      fakeAsync((async) {
+        final h = Harness(async)..start();
+        expect(h.session.debuggerAddress, isNull);
+        h.process.emitLine(debugPort(authCode));
+        async.flushMicrotasks();
+        expect(h.session.debuggerAddress, 'http://127.0.0.1:5001/$authCode=/');
+        h.process.exit(0);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.session.debuggerAddress, isNull);
+      });
+    });
+
+    test('is the run\'s own: a second session gets its own code', () {
+      fakeAsync((async) {
+        final first = Harness(async)..start();
+        first.process.emitLine(debugPort('FirstRunCode1'));
+        async.flushMicrotasks();
+        first.process.exit(0);
+        async.elapse(const Duration(seconds: 2));
+        final second = Harness(async)..start();
+        second.process.emitLine(debugPort('SecondRunCode', port: 5002));
+        async.flushMicrotasks();
+        expect(second.session.debuggerAddress, contains('SecondRunCode'));
+        expect(
+          second.session.debuggerAddress,
+          isNot(contains('FirstRunCode1')),
+        );
+      });
+    });
+
+    test('is in no event, string, error or output (SC-005)', () {
+      fakeAsync((async) {
+        final h = Harness(async)..start();
+        h.process
+          ..emitLine(debugPort(authCode))
+          ..emitLine(
+            'Debug service listening on ws://127.0.0.1:5001/$authCode=/ws',
+          )
+          ..emitStderr('Lost ws://127.0.0.1:5001/$authCode=/ws');
+        h.process.queue('start.txt');
+        h.process.emitAll();
+        async.flushMicrotasks();
+        h
+          ..answerReloads()
+          ..save();
+        async.elapse(const Duration(seconds: 1));
+        h.process.exit(1);
+        async.elapse(const Duration(seconds: 2));
+        for (final event in h.events) {
+          expect('$event', isNot(contains(authCode)));
+          if (event is PlayOutput) {
+            expect(event.line, isNot(contains(authCode)));
+          }
+        }
+        expect('${h.session}', isNot(contains(authCode)));
+      });
+    });
+
+    test('the repoint connects with the address it was given', () {
+      fakeAsync((async) {
+        final h = Harness(async)..start(link: true);
+        h.process
+          ..emitLine(debugPort(authCode))
+          ..queue('start.txt')
+          ..emitUntil((l) => l.contains('app.started'));
+        async.flushMicrotasks();
+        h
+          ..answerReloads()
+          ..save();
+        async.elapse(const Duration(milliseconds: 150));
+        expect(h.vm.connectedTo, 'ws://127.0.0.1:5001/$authCode=/ws');
+        h.process.exit(0);
+        async.elapse(const Duration(seconds: 2));
+        expect(h.vm.closed, isTrue);
+      });
+    });
+  });
+
+  group('a Hot-swap that stopped working (FR-011)', () {
+    const sceneAsset = 'assets/scenes/level1.scene.json';
+
+    /// Saves [content] to the Scene and lets the reload finish.
+    void save(Harness h, FakeAsync async, String content, {String? report}) {
+      h.fs.file(scene).writeAsStringSync(content);
+      h.save();
+      async.elapse(const Duration(milliseconds: 200));
+      if (report != null) {
+        h.process.emitLine('flutter: [pyro] Scene $report: $sceneAsset');
+      }
+      async.elapse(const Duration(seconds: 4));
+    }
+
+    Harness announced(FakeAsync async) {
+      final h = Harness(async)
+        ..startGame()
+        ..answerReloads();
+      h.fs.file(scene).writeAsStringSync('v1');
+      h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+      async.flushMicrotasks();
+      return h;
+    }
+
+    test('two unreported saves in a row stop Scene reloads', () {
+      fakeAsync((async) {
+        final h = announced(async);
+        save(h, async, 'v2');
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        save(h, async, 'v3');
+        final failed = h.only<PlayHotSwapFailed>().single;
+        expect(failed.paths, {sceneAsset});
+        expect(failed.misses, 2);
+        final restarts = h.restarts.length;
+        save(h, async, 'v4');
+        expect(h.restarts, hasLength(restarts), reason: 'Scene batches stop');
+        // Code reloads continue.
+        unawaited(h.session.reload());
+        async.flushMicrotasks();
+        expect(h.restarts, hasLength(restarts + 1));
+      });
+    });
+
+    test('reports keep it healthy', () {
+      fakeAsync((async) {
+        final h = announced(async);
+        for (var i = 2; i < 8; i++) {
+          save(h, async, 'v$i', report: 'reloaded');
+        }
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+      });
+    });
+
+    test('a save that changes nothing never fails it', () {
+      fakeAsync((async) {
+        final h = announced(async);
+        for (var i = 0; i < 4; i++) {
+          save(h, async, 'v1');
+        }
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+      });
+    });
+
+    test('a Scene the game never announced is noted once, never failed', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame()
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        for (var i = 2; i < 6; i++) {
+          save(h, async, 'v$i');
+        }
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        expect(
+          h.only<PlayOutput>().where(
+            (o) =>
+                o.source == PlayOutputSource.tool &&
+                o.line.contains(sceneAsset),
+          ),
+          hasLength(1),
+        );
+      });
+    });
+
+    test('an IDE\'s hot restart disarms it instead of failing it', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v2', report: 'reloaded');
+        // The IDE restarts the game: a new isolate, and no more output.
+        h.vm.isolateId = 'isolates/2';
+        for (final content in ['v3', 'v4', 'v5', 'v6']) {
+          save(h, async, content);
+        }
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        final notes = h.only<PlayOutput>().where(
+          (o) =>
+              o.source == PlayOutputSource.tool &&
+              o.line.contains('outside Pyro'),
+        );
+        expect(notes, hasLength(1), reason: 'said once');
+        // Scene reloads still go out.
+        expect(h.restarts.length, greaterThanOrEqualTo(5));
+      });
+    });
+
+    test('output that comes back arms it again', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        h.vm.isolateId = 'isolates/2';
+        save(h, async, 'v2');
+        expect(h.only<PlayHotSwapFailed>(), isEmpty);
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v3');
+        save(h, async, 'v4');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
+      });
+    });
+
+    test('Pyro\'s own restart is not an outside restart', () {
+      fakeAsync((async) {
+        final h = Harness(async)
+          ..startGame(link: true)
+          ..answerReloads();
+        h.fs.file(scene).writeAsStringSync('v1');
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v2', report: 'reloaded');
+        unawaited(h.session.restart());
+        async.elapse(const Duration(seconds: 1));
+        h.vm.isolateId = 'isolates/2';
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        async.flushMicrotasks();
+        save(h, async, 'v3');
+        save(h, async, 'v4');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
+        expect(
+          h.only<PlayOutput>().where((o) => o.line.contains('outside Pyro')),
+          isEmpty,
+        );
+      });
+    });
+
+    test('restart() re-arms it', () {
+      fakeAsync((async) {
+        final h = announced(async);
+        save(h, async, 'v2');
+        save(h, async, 'v3');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
+        unawaited(h.session.restart());
+        async.flushMicrotasks();
+        h.process.emitLine('flutter: [pyro] Scene loaded: $sceneAsset');
+        final restarts = h.restarts.length;
+        save(h, async, 'v4', report: 'reloaded');
+        expect(h.restarts.length, restarts + 1, reason: 'Scene reloads resume');
+        expect(h.only<PlayHotSwapFailed>(), hasLength(1));
       });
     });
   });

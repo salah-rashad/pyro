@@ -27,8 +27,14 @@ enum SdkSource {
 @freezed
 sealed class SdkInfo with _$SdkInfo {
   /// Creates the detection result; [version] is null with [SdkSource.none].
-  const factory SdkInfo({required String? version, required SdkSource source}) =
-      _SdkInfo;
+  const factory SdkInfo({
+    required String? version,
+    required SdkSource source,
+
+    /// The SDK's folder, when the source names one (fvm, `FLUTTER_ROOT`);
+    /// null for `flutter` on `PATH`, which runs by name.
+    String? root,
+  }) = _SdkInfo;
 
   /// No SDK found.
   static const none = SdkInfo(version: null, source: SdkSource.none);
@@ -60,12 +66,23 @@ Future<SdkInfo> detectSdk(
   PathVersion pathVersion = _noPathVersion,
 }) async {
   final fvm = _fvmVersion(fileSystem, projectRoot);
-  if (fvm != null) return SdkInfo(version: fvm, source: SdkSource.fvm);
+  if (fvm != null) {
+    final link = fileSystem.path.join(projectRoot, '.fvm', 'flutter_sdk');
+    return SdkInfo(
+      version: fvm,
+      source: SdkSource.fvm,
+      root: fileSystem.directory(link).existsSync() ? link : null,
+    );
+  }
   final root = flutterRoot ?? env('FLUTTER_ROOT');
   if (root != null) {
     final version = _versionFile(fileSystem, root);
     if (version != null) {
-      return SdkInfo(version: version, source: SdkSource.flutterRoot);
+      return SdkInfo(
+        version: version,
+        source: SdkSource.flutterRoot,
+        root: root,
+      );
     }
   }
   final onPath = await pathVersion();
@@ -74,6 +91,15 @@ Future<SdkInfo> detectSdk(
 }
 
 Future<String?> _noPathVersion() async => null;
+
+/// The `flutter` executable of [sdk]: `<root>/bin/flutter`, or `flutter` on
+/// `PATH` when the SDK has no known folder.
+String flutterExecutable(SdkInfo sdk) =>
+    sdk.root == null ? 'flutter' : '${sdk.root}/bin/flutter';
+
+/// The `dart` executable of [sdk]: `<root>/bin/dart`, or `dart` on `PATH`.
+String dartExecutable(SdkInfo sdk) =>
+    sdk.root == null ? 'dart' : '${sdk.root}/bin/dart';
 
 /// Runs `flutter --version` and reads its version number: the app's
 /// [PathVersion]. Tests inject a fake instead so they never run a real

@@ -6,12 +6,32 @@
 /// imports Flutter, so `bin/play.dart` runs it with `dart run`.
 library;
 
+export 'src/build_lock.dart' show BuildLockProbe, LockProbeResult;
+export 'src/console_buffer.dart' show ConsoleBuffer;
+export 'src/console_line.dart' show ConsoleLine, ConsoleSeverity, ConsoleSource;
+export 'src/generator_output.dart'
+    show GeneratorLine, classifyGeneratorLine, severeFile;
+export 'src/generator_state.dart' show GeneratorState, GeneratorStatus;
+export 'src/generator_supervisor.dart' show GeneratorSupervisor;
+export 'src/hot_swap_monitor.dart' show HotSwapMonitor;
+export 'src/play_block.dart' show PlayBlock;
 export 'src/play_client.dart' show PlayClient, ProcessStarter;
+export 'src/play_controller.dart'
+    show
+        GameStopped,
+        HotSwapFailed,
+        PlayController,
+        PlayNotice,
+        PlayPhase,
+        PlayStarter,
+        RunLinkMaker;
+export 'src/play_defaults.dart' show PlayDefaults;
 export 'src/play_event.dart'
     show
         PlayDebuggerAvailable,
         PlayEvent,
         PlayFailed,
+        PlayHotSwapFailed,
         PlayOutput,
         PlayOutputSource,
         PlayReloadFailed,
@@ -25,4 +45,7 @@ export 'src/play_event.dart'
         ReloadResult;
 export 'src/play_session.dart' show PlaySession;
 export 'src/redact.dart' show redactAuthCodes;
+export 'src/run_link.dart' show RunLink;
 export 'src/scene_watcher.dart' show DirectoryWatcher, watchRecursively;
+export 'src/vm_service_link.dart'
+    show ViewInfo, VmServiceCallFailed, VmServiceLink;

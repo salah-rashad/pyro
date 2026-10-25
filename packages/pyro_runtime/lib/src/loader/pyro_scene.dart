@@ -16,6 +16,33 @@ import 'repair_warning.dart';
 import 'scene_builder.dart';
 import 'unknown_type.dart';
 
+/// What a [hotSwapReportLine] says.
+@visibleForTesting
+enum HotSwapReport {
+  /// A `PyroScene` built its first tree.
+  loaded,
+
+  /// A Hot-swap rebuilt the tree because the content changed.
+  reloaded,
+
+  /// A Hot-swap could not rebuild; the game keeps the Scene it had.
+  notReloaded,
+}
+
+/// The one-line report the Runtime prints in debug builds for a load or a
+/// Hot-swap (spec 007, contracts/hot-swap-reports.md): Pyro reads it from
+/// the game's output to tell that a Hot-swap reached the game. The format
+/// is a contract; a change to it is noted in `ARCHITECTURE.md`.
+@visibleForTesting
+String hotSwapReportLine(HotSwapReport kind, String path, [String? reason]) =>
+    switch (kind) {
+      HotSwapReport.loaded => '[pyro] Scene loaded: $path',
+      HotSwapReport.reloaded => '[pyro] Scene reloaded: $path',
+      HotSwapReport.notReloaded =>
+        '[pyro] Scene not reloaded: $path: '
+            '${(reason ?? '').split('\n').first.trim()}',
+    };
+
 /// Called after a Hot-swap rebuilt [scene]; re-run lookups here (*Q71*).
 ///
 /// The new Nodes are in [scene] and lookups return them, but their own
@@ -76,6 +103,7 @@ final class PyroScene extends Component {
       assets ?? AssetSource.bundle(),
     );
     scene._adopt(await scene._build());
+    if (kDebugMode) debugPrint(hotSwapReportLine(HotSwapReport.loaded, path));
     return scene;
   }
 
@@ -214,6 +242,7 @@ final class PyroScene extends Component {
         "══ Pyro couldn't Hot-swap $path ══\n$error\n"
         'The game keeps the Scene it had. Fix the file and save it again.',
       );
+      debugPrint(hotSwapReportLine(HotSwapReport.notReloaded, path, '$error'));
       return;
     }
     final old = _built;
@@ -221,6 +250,7 @@ final class PyroScene extends Component {
     removeAll(old.children);
     _adopt(built);
     _staleWatch = StaleWatch(path, old.entries);
+    debugPrint(hotSwapReportLine(HotSwapReport.reloaded, path));
     onReloaded?.call(this);
   }
 

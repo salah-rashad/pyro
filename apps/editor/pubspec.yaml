@@ -28,6 +28,9 @@ dependencies:
   pyro_ui: ^0.0.1
   riverpod_annotation: 4.0.3
   uuid: ^4.6.0
+  # The asset re-point before each Scene Hot-swap calls the VM service
+  # (spec 007, research R4); the benchmarks use it too. BSD-3.
+  vm_service: ^15.4.0
   # Parses the open project's pubspec.yaml (asset folders) and pubspec.lock
   # (Runtime version) — the editor's only new dependency (spec 006, plan.md's
   # Constitution Check).
@@ -42,8 +45,6 @@ dev_dependencies:
     sdk: flutter
   freezed: 3.2.6-dev.1
   riverpod_generator: 4.0.4
-  # Heap measurements in benchmark/ (spec 002, SC-006).
-  vm_service: ^15.4.0
 
 flutter:
   uses-material-design: true

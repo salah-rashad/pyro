@@ -32,7 +32,15 @@ void main() {
       fs.directory('/proj/.fvm/flutter_sdk').createSync(recursive: true);
       fs.file('/proj/.fvm/flutter_sdk/version').writeAsStringSync('3.44.2\n');
       final info = await detectSdk('/proj', fileSystem: fs, env: (_) => null);
-      expect(info, const SdkInfo(version: '3.44.2', source: SdkSource.fvm));
+      expect(
+        info,
+        const SdkInfo(
+          version: '3.44.2',
+          source: SdkSource.fvm,
+          root: '/proj/.fvm/flutter_sdk',
+        ),
+      );
+      expect(flutterExecutable(info), '/proj/.fvm/flutter_sdk/bin/flutter');
     });
 
     test('an unreadable .fvmrc falls through to FLUTTER_ROOT', () async {
@@ -44,8 +52,14 @@ void main() {
       final info = await detectSdk('/proj', fileSystem: fs, env: (_) => '/sdk');
       expect(
         info,
-        const SdkInfo(version: '3.44.2', source: SdkSource.flutterRoot),
+        const SdkInfo(
+          version: '3.44.2',
+          source: SdkSource.flutterRoot,
+          root: '/sdk',
+        ),
       );
+      expect(flutterExecutable(info), '/sdk/bin/flutter');
+      expect(dartExecutable(info), '/sdk/bin/dart');
     });
 
     test(

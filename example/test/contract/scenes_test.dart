@@ -52,7 +52,8 @@ void main() {
 }
 
 /// Loads [path] into [game] with the default `UnknownType.error`, returning
-/// whatever the Runtime printed while it did.
+/// whatever the Runtime printed while it did, except its `[pyro] Scene …`
+/// Hot-swap reports (spec 007), which are not warnings.
 Future<List<String>> _load(
   FlameGame game,
   String path, {
@@ -60,7 +61,10 @@ Future<List<String>> _load(
 }) async {
   final printed = <String>[];
   final original = debugPrint;
-  debugPrint = (message, {wrapWidth}) => printed.add(message ?? '');
+  debugPrint = (message, {wrapWidth}) {
+    final line = message ?? '';
+    if (!line.startsWith('[pyro] Scene ')) printed.add(line);
+  };
   try {
     final scene = await PyroScene.load(
       path,

@@ -239,9 +239,11 @@ void main() {
 }}''';
       final scene = await _load(damaged);
       expect(scene.findAll<PyroEntity>(), hasLength(2));
-      expect(printed, hasLength(1));
-      expect(printed.single, contains(scenePath));
-      expect(printed.single, contains('repaired'));
+      // The Runtime's own `[pyro] Scene loaded` report aside (spec 007).
+      final warnings = printed.where((p) => !p.startsWith('[pyro] Scene '));
+      expect(warnings, hasLength(1));
+      expect(warnings.single, contains(scenePath));
+      expect(warnings.single, contains('repaired'));
     });
 
     testWithFlameGame('#10 two loads are independent', (game) async {

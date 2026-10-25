@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "rootId": "ce4b9538-a807-4870-9bf2-b15916c33a7c",
+  "nodes": {
+    "5468b267-350c-46e0-9346-45069548c3e4": {
+      "kind": "rectangleHitbox",
+      "name": "Rectangle hitbox",
+      "props": {
+        "anchor": "topLeft",
+        "angle": 0,
+        "collisionType": "active",
+        "isSolid": false,
+        "position": [6, 2],
+        "size": [20, 29]
+      }
+    },
+    "abd5caa1-e858-4dd5-8e27-2cda3057a1c3": {
+      "kind": "custom",
+      "name": "Banner",
+      "transform": {
+        "anchor": "topCenter",
+        "angle": 0,
+        "position": [0, -135.38060760498047],
+        "scale": [1, 1],
+        "size": [0, 0]
+      },
+      "type": "Banner"
+    },
+    "ce4b9538-a807-4870-9bf2-b15916c33a7c": {
+      "childIds": [
+        "ced78915-12b4-4a47-850c-e014c89c2882",
+        "abd5caa1-e858-4dd5-8e27-2cda3057a1c3"
+      ],
+      "kind": "root"
+    },
+    "ced78915-12b4-4a47-850c-e014c89c2882": {
+      "behaviors": [
+        {
+          "fields": {
+            "turnsPerSecond": 4
+          },
+          "type": "Spin"
+        }
+      ],
+      "childIds": [
+        "f78d3960-aa15-4d72-8a61-260cbc39e089",
+        "5468b267-350c-46e0-9346-45069548c3e4"
+      ],
+      "kind": "entity",
+      "name": "Rocket",
+      "transform": {
+        "anchor": "topCenter",
+        "angle": 0,
+        "position": [0, 0],
+        "scale": [1, 1],
+        "size": [32, 32]
+      }
+    },
+    "f78d3960-aa15-4d72-8a61-260cbc39e089": {
+      "kind": "sprite",
+      "name": "Sprite",
+      "props": {
+        "image": "assets/images/ship.png"
+      },
+      "transform": {
+        "anchor": "topLeft",
+        "angle": 0,
+        "position": [0, 0],
+        "scale": [1, 1],
+        "size": [32, 32]
+      }
+    }
+  }
+}

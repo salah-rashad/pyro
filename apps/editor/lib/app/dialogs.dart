@@ -38,6 +38,41 @@ Future<UnsavedChangesAnswer> showUnsavedChangesDialog(
   ),
 ).then((answer) => answer ?? UnsavedChangesAnswer.cancel);
 
+/// The "Save and play" question's answers (spec 007, FR-006).
+enum SaveAndPlayAnswer { saveAndPlay, playWithoutSaving, cancel }
+
+/// Asks what to do with [count] Scenes' unsaved changes before Play:
+/// primary *Save and play*, *Play without saving* apart on the left (the
+/// "Don't save" place), secondary *Cancel*, which the close × and Esc
+/// also answer: they start nothing.
+Future<SaveAndPlayAnswer> showSaveAndPlayDialog(
+  BuildContext context, {
+  required int count,
+}) => showFsDialog<SaveAndPlayAnswer>(
+  context,
+  dialog: PrDialog(
+    title: count == 1
+        ? 'A Scene has unsaved changes'
+        : '$count Scenes have unsaved changes',
+    body:
+        'The game loads the Scenes saved on disk, so it will not show '
+        'unsaved changes.',
+    primary: const PrDialogAction(
+      label: 'Save and play',
+      value: SaveAndPlayAnswer.saveAndPlay,
+    ),
+    secondary: const PrDialogAction(
+      label: 'Cancel',
+      value: SaveAndPlayAnswer.cancel,
+    ),
+    destructive: const PrDialogAction(
+      label: 'Play without saving',
+      value: SaveAndPlayAnswer.playWithoutSaving,
+    ),
+    closeTooltip: 'Cancel',
+  ),
+).then((answer) => answer ?? SaveAndPlayAnswer.cancel);
+
 /// The new-scene dialog's result (FR-008).
 class NewSceneResult {
   /// Creates the result.
@@ -334,6 +369,47 @@ Future<void> showCatalogProblemsDialog(
               ],
             ),
           ),
+        ),
+      ),
+      primary: const PrDialogAction(label: 'OK'),
+    ),
+  );
+}
+
+/// The generator's failed build (spec 007, FR-019): the file and the
+/// message `build_runner` reported. The whole output is in the Console.
+Future<void> showGeneratorErrorDialog(
+  BuildContext context, {
+  required String? file,
+  required String? message,
+}) {
+  final c = PrColors.of(context);
+  return showFsDialog<void>(
+    context,
+    dialog: PrDialog(
+      title: 'Generator error',
+      width: PrDialogWidth.form,
+      content: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: PrSpacing.s2,
+          children: [
+            if (file != null)
+              Text(
+                file,
+                style: PrText.monoSmall.copyWith(color: c.textSecondary),
+              ),
+            Text(
+              message ?? 'The build failed.',
+              style: PrText.small.copyWith(color: c.error),
+            ),
+            Text(
+              'The types stay as they were until the build succeeds. The '
+              "generator's whole output is in the Console.",
+              style: PrText.small.copyWith(color: c.textSecondary),
+            ),
+          ],
         ),
       ),
       primary: const PrDialogAction(label: 'OK'),

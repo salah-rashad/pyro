@@ -14,7 +14,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$SdkInfo {
 
- String? get version; SdkSource get source;
+ String? get version; SdkSource get source;/// The SDK's folder, when the source names one (fvm, `FLUTTER_ROOT`);
+/// null for `flutter` on `PATH`, which runs by name.
+ String? get root;
 /// Create a copy of SdkInfo
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +27,16 @@ $SdkInfoCopyWith<SdkInfo> get copyWith => _$SdkInfoCopyWithImpl<SdkInfo>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SdkInfo&&(identical(other.version, version) || other.version == version)&&(identical(other.source, source) || other.source == source));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SdkInfo&&(identical(other.version, version) || other.version == version)&&(identical(other.source, source) || other.source == source)&&(identical(other.root, root) || other.root == root));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,version,source);
+int get hashCode => Object.hash(runtimeType,version,source,root);
 
 @override
 String toString() {
-  return 'SdkInfo(version: $version, source: $source)';
+  return 'SdkInfo(version: $version, source: $source, root: $root)';
 }
 
 
@@ -45,7 +47,7 @@ abstract mixin class $SdkInfoCopyWith<$Res>  {
   factory $SdkInfoCopyWith(SdkInfo value, $Res Function(SdkInfo) _then) = _$SdkInfoCopyWithImpl;
 @useResult
 $Res call({
- String? version, SdkSource source
+ String? version, SdkSource source, String? root
 });
 
 
@@ -62,11 +64,12 @@ class _$SdkInfoCopyWithImpl<$Res>
 
 /// Create a copy of SdkInfo
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? version = freezed,Object? source = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? version = freezed,Object? source = null,Object? root = freezed,}) {
   return _then(_self.copyWith(
 version: freezed == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
 as String?,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as SdkSource,
+as SdkSource,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -148,10 +151,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? version,  SdkSource source)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String? version,  SdkSource source,  String? root)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SdkInfo() when $default != null:
-return $default(_that.version,_that.source);case _:
+return $default(_that.version,_that.source,_that.root);case _:
   return orElse();
 
 }
@@ -169,10 +172,10 @@ return $default(_that.version,_that.source);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? version,  SdkSource source)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String? version,  SdkSource source,  String? root)  $default,) {final _that = this;
 switch (_that) {
 case _SdkInfo():
-return $default(_that.version,_that.source);}
+return $default(_that.version,_that.source,_that.root);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -186,10 +189,10 @@ return $default(_that.version,_that.source);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? version,  SdkSource source)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String? version,  SdkSource source,  String? root)?  $default,) {final _that = this;
 switch (_that) {
 case _SdkInfo() when $default != null:
-return $default(_that.version,_that.source);case _:
+return $default(_that.version,_that.source,_that.root);case _:
   return null;
 
 }
@@ -201,11 +204,14 @@ return $default(_that.version,_that.source);case _:
 
 
 class _SdkInfo implements SdkInfo {
-  const _SdkInfo({required this.version, required this.source});
+  const _SdkInfo({required this.version, required this.source, this.root});
   
 
 @override final  String? version;
 @override final  SdkSource source;
+/// The SDK's folder, when the source names one (fvm, `FLUTTER_ROOT`);
+/// null for `flutter` on `PATH`, which runs by name.
+@override final  String? root;
 
 /// Create a copy of SdkInfo
 /// with the given fields replaced by the non-null parameter values.
@@ -217,16 +223,16 @@ _$SdkInfoCopyWith<_SdkInfo> get copyWith => __$SdkInfoCopyWithImpl<_SdkInfo>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SdkInfo&&(identical(other.version, version) || other.version == version)&&(identical(other.source, source) || other.source == source));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _SdkInfo&&(identical(other.version, version) || other.version == version)&&(identical(other.source, source) || other.source == source)&&(identical(other.root, root) || other.root == root));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,version,source);
+int get hashCode => Object.hash(runtimeType,version,source,root);
 
 @override
 String toString() {
-  return 'SdkInfo(version: $version, source: $source)';
+  return 'SdkInfo(version: $version, source: $source, root: $root)';
 }
 
 
@@ -237,7 +243,7 @@ abstract mixin class _$SdkInfoCopyWith<$Res> implements $SdkInfoCopyWith<$Res> {
   factory _$SdkInfoCopyWith(_SdkInfo value, $Res Function(_SdkInfo) _then) = __$SdkInfoCopyWithImpl;
 @override @useResult
 $Res call({
- String? version, SdkSource source
+ String? version, SdkSource source, String? root
 });
 
 
@@ -254,11 +260,12 @@ class __$SdkInfoCopyWithImpl<$Res>
 
 /// Create a copy of SdkInfo
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? version = freezed,Object? source = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? version = freezed,Object? source = null,Object? root = freezed,}) {
   return _then(_SdkInfo(
 version: freezed == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
 as String?,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
-as SdkSource,
+as SdkSource,root: freezed == root ? _self.root : root // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

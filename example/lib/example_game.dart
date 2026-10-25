@@ -41,15 +41,13 @@ class ExampleGame extends FlameGame {
     await world.add(scene);
     _hud = TextComponent(text: _hudText, position: Vector2(12, 560));
     await camera.viewport.add(_hud);
-    // The latency benchmark and the manual check wait for these lines
-    // (spec 005, research R14); keep them exactly as they are.
+    // The latency benchmark waits for this line (spec 005, research R14);
+    // keep it exactly as it is. The Runtime prints its own
+    // `[pyro] Scene loaded/reloaded` reports (spec 007).
     debugPrint('[pyro_example] Scene loaded: $scenePath');
   }
 
-  void _onReloaded(PyroScene scene) {
-    swaps++;
-    debugPrint('[pyro_example] Scene reloaded: $scenePath');
-  }
+  void _onReloaded(PyroScene scene) => swaps++;
 
   /// The HUD's text: time, Hot-swaps and the code marker.
   String get hudText => _hudText;

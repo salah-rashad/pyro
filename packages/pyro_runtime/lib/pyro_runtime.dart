@@ -16,7 +16,7 @@ export 'package:pyro_annotations/pyro_annotations.dart';
 export 'src/assets/asset_source.dart' show AssetSource;
 export 'src/loader/load_exception.dart';
 export 'src/loader/pyro_entity.dart';
-export 'src/loader/pyro_scene.dart';
+export 'src/loader/pyro_scene.dart' show PyroScene, SceneReloaded;
 export 'src/loader/registry.dart';
 export 'src/loader/repair_warning.dart';
 export 'src/loader/unknown_type.dart';

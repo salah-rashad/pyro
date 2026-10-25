@@ -5,6 +5,7 @@ import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:pyro/process/providers.dart';
 import 'package:pyro/project/project.dart';
 import 'package:pyro_ui/pyro_ui.dart';
 
@@ -59,7 +60,13 @@ class _PyroAppState extends State<PyroApp> {
   @override
   void initState() {
     super.initState();
-    _container = ProviderContainer();
+    _container = ProviderContainer(
+      overrides: [
+        runLinkSupportProvider.overrideWithValue(
+          pyroSupportFolder(widget.fileSystem),
+        ),
+      ],
+    );
     _settings = RecentProjectsStore(
       widget.fileSystem.file(
         widget.fileSystem.path.join(

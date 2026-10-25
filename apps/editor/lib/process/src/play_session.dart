@@ -6,9 +6,11 @@ import 'package:clock/clock.dart';
 import 'package:file/file.dart';
 
 import 'daemon_message.dart';
+import 'hot_swap_monitor.dart';
 import 'play_event.dart';
 import 'redact.dart';
 import 'scene_watcher.dart';
+import 'vm_service_link.dart';
 
 /// How long the process may take to exit after SIGTERM before SIGKILL
 /// (research R10).
@@ -32,6 +34,8 @@ PlaySession startPlaySession({
   required Duration quietPeriod,
   required Duration stopTimeout,
   void Function(String line)? onStdoutLine,
+  bool repoint = false,
+  Future<VmServiceLink> Function(String wsUri)? vmConnect,
 }) => PlaySession._(
   process: process,
   command: command,
@@ -41,6 +45,8 @@ PlaySession startPlaySession({
   quietPeriod: quietPeriod,
   stopTimeout: stopTimeout,
   onStdoutLine: onStdoutLine,
+  repoint: repoint,
+  vmConnect: vmConnect,
 );
 
 /// One run of a game through `flutter run --machine`, from spawn to exit
@@ -59,7 +65,18 @@ final class PlaySession {
     required Duration quietPeriod,
     required this._stopTimeout,
     this._onStdoutLine,
-  }) {
+    this._repoint = false,
+    this._vmConnect,
+  }) : _fs = fileSystem {
+    _monitor = HotSwapMonitor(
+      contentOf: _readScene,
+      onFailed: (paths, misses) => _emit(PlayHotSwapFailed(paths, misses)),
+      onUnannounced: (path) => _output(
+        "$path was saved, but the game hasn't said it loaded it, so Pyro "
+        "can't tell whether the save reached the game.",
+        PlayOutputSource.tool,
+      ),
+    );
     _watcher = SceneWatcher(
       fileSystem: fileSystem,
       projectPath: projectPath,
@@ -98,7 +115,15 @@ final class PlaySession {
   final Process _process;
   final Duration _stopTimeout;
   final void Function(String line)? _onStdoutLine;
+  final bool _repoint;
+  final Future<VmServiceLink> Function(String wsUri)? _vmConnect;
+  final FileSystem _fs;
   late final SceneWatcher _watcher;
+  late final HotSwapMonitor _monitor;
+  VmServiceLink? _vm;
+  String? _wsUri;
+  String? _baseUri;
+  String? _isolateId;
   final _events = StreamController<PlayEvent>();
   final _stopwatch = clock.stopwatch()..start();
   final _pending = <int, Completer<DaemonResponse>>{};
@@ -114,6 +139,7 @@ final class PlaySession {
   Object? _stopError;
   bool _reloadInFlight = false;
   Set<String>? _queuedPaths;
+  var _queuedFull = false;
   Completer<ReloadResult>? _queuedReload;
   Timer? _terminate;
   Timer? _kill;
@@ -123,6 +149,22 @@ final class PlaySession {
 
   /// The daemon's id for the running app, once `flutter run` reports it.
   String? get appId => _appId;
+
+  /// The address an IDE attaches to, with its authentication code, while the
+  /// game runs; null before the game reports it and after the session ends.
+  ///
+  /// For *Attach debugger* only (spec 007, FR-024, research R3): it grants
+  /// full control of the game, so it is in no event, string or log. Every
+  /// run has its own (FR-028).
+  String? get debuggerAddress {
+    final ws = _wsUri;
+    if (ws == null) return null;
+    final uri = Uri.parse(ws);
+    final path = uri.path.endsWith('/ws')
+        ? uri.path.substring(0, uri.path.length - 2)
+        : uri.path;
+    return uri.replace(scheme: 'http', path: path).toString();
+  }
 
   /// Every event of this session, in order; closes after [PlayStopped].
   /// Single subscription: events wait until it is listened to.
@@ -144,6 +186,22 @@ final class PlaySession {
       );
     }
     return _requestReload(const {});
+  }
+
+  /// A full restart of the game (*Restart game*): a new isolate, the Scenes
+  /// loaded again, the Hot-swap monitor armed afresh. Not repointed.
+  ///
+  /// Throws [StateError] unless the game is running or reloading.
+  Future<ReloadResult> restart() {
+    if (_state != PlayState.running && _state != PlayState.reloading) {
+      throw StateError(
+        "Can't restart $projectPath while the Play session is "
+        '${_state.name}.',
+      );
+    }
+    _monitor.rearm();
+    _isolateId = null; // Pyro's own restart: a new isolate is expected.
+    return _requestReload(const {}, full: true);
   }
 
   /// Sends `app.stop`, then SIGTERM after the stop timeout and SIGKILL two
@@ -188,11 +246,17 @@ final class PlaySession {
       case 'app.start':
         _appId = params['appId'] as String?;
       case 'app.debugPort':
-        // The address is dropped here on purpose (research R5).
+        // Kept privately, for the repoint and for Attach; the event says
+        // only that it exists (research R3, R5).
         if (!_debuggerReported) {
           _debuggerReported = true;
+          _wsUri = params['wsUri'] as String?;
+          _baseUri = params['baseUri'] as String?;
           _emit(const PlayDebuggerAvailable());
         }
+      case 'device.added' || 'device.removed' || 'device.changed':
+        // The daemon's device list: not the game's output.
+        break;
       case 'app.devTools' || 'app.dtd':
         // DevTools and the tooling daemon: addresses, dropped like the VM
         // service's (research R5).
@@ -233,35 +297,43 @@ final class PlaySession {
       return;
     }
     if (_state != PlayState.running && _state != PlayState.reloading) return;
+    // Scene reloads stopped until *Restart game* (FR-011).
+    if (_monitor.failed) return;
     // Watcher-driven reloads report through events; a failure has already
     // been reported as PlayReloadFailed, and a stop as PlayStopped.
     _requestReload(paths).ignore();
   }
 
-  Future<ReloadResult> _requestReload(Set<String> paths) {
-    if (!_reloadInFlight) return _runReload(paths);
+  Future<ReloadResult> _requestReload(Set<String> paths, {bool full = false}) {
+    if (!_reloadInFlight) return _runReload(paths, full: full);
     (_queuedPaths ??= {}).addAll(paths);
+    _queuedFull = _queuedFull || full;
     return (_queuedReload ??= Completer<ReloadResult>()).future;
   }
 
-  Future<ReloadResult> _runReload(Set<String> paths) async {
+  Future<ReloadResult> _runReload(
+    Set<String> paths, {
+    bool full = false,
+  }) async {
     _reloadInFlight = true;
     _state = PlayState.reloading;
     _emit(PlayReloading(paths.toList()..sort()));
     final started = clock.now();
+    final repointing = _repoint && paths.isNotEmpty && !full;
+    if (paths.isNotEmpty && !repointing) _monitor.onBatch(paths);
     final DaemonResponse response;
     try {
-      response = await _send('app.restart', {
-        'appId': _appId,
-        'fullRestart': false,
-        'pause': false,
-        'reason': 'pyro',
-      });
+      response = repointing
+          ? await _reloadScenes(paths)
+          : await _sendRestart(full: full);
     } finally {
       _reloadInFlight = false;
     }
     final result = _reloadResult(response, clock.now().difference(started));
     final failure = result.ok ? null : result.message ?? 'unknown error';
+    if (paths.isNotEmpty) {
+      result.ok ? _monitor.onReloadFinished() : _monitor.onReloadFailed();
+    }
     _emit(
       failure == null
           ? PlayReloaded(result.elapsed)
@@ -269,8 +341,10 @@ final class PlaySession {
     );
     if (_state == PlayState.reloading) _state = PlayState.running;
     final queued = _queuedPaths;
+    final queuedFull = _queuedFull;
     final waiting = _queuedReload;
     _queuedPaths = null;
+    _queuedFull = false;
     _queuedReload = null;
     if (queued != null && waiting != null) {
       // A stop requested while the reload was in flight fails the queued
@@ -278,10 +352,104 @@ final class PlaySession {
       if (_stopRequested) {
         waiting.completeError(_stoppedError());
       } else {
-        waiting.complete(_runReload(queued));
+        waiting.complete(_runReload(queued, full: queuedFull));
       }
     }
     return result;
+  }
+
+  Future<DaemonResponse> _sendRestart({required bool full}) => _send(
+    'app.restart',
+    {'appId': _appId, 'fullRestart': full, 'pause': false, 'reason': 'pyro'},
+  );
+
+  /// A Scene reload (research R5): point the engine at the project's own
+  /// assets, then hot reload. When the engine refuses (the folder isn't
+  /// there yet, or an IDE recreated the game's file system), reload first so
+  /// it is, point again, evict the changed Scenes and reload once more.
+  Future<DaemonResponse> _reloadScenes(Set<String> paths) async {
+    // After the isolate check, which may have disarmed the monitor.
+    final view = await _findView();
+    _monitor.onBatch(paths);
+    if (view != null && await _setAssets(view)) {
+      return _sendRestart(full: false);
+    }
+    final first = await _sendRestart(full: false);
+    if (!_reloadResult(first, Duration.zero).ok) return first;
+    final again = await _findView();
+    if (again != null && await _setAssets(again)) await _evict(again, paths);
+    return _sendRestart(full: false);
+  }
+
+  /// The game's Flutter view, from the VM service; null when it can't be
+  /// reached.
+  ///
+  /// A view in another isolate than last time means the game was restarted
+  /// from outside Pyro (an IDE's hot restart). Its output then stops
+  /// reaching Pyro, so saves can no longer be confirmed: the Hot-swap monitor
+  /// forgets what the game announced rather than count silence as failure.
+  Future<ViewInfo?> _findView() async {
+    final ws = _wsUri;
+    if (ws == null) return null;
+    try {
+      final vm = _vm ??= await (_vmConnect ?? VmServiceLink.connect)(ws);
+      final views = await vm.listViews();
+      if (views.isEmpty) return null;
+      final view = views.first;
+      final before = _isolateId;
+      _isolateId = view.isolateId;
+      if (before != null && before != view.isolateId) {
+        _monitor.rearm();
+        _output(
+          'The game was restarted from outside Pyro, so Pyro can no longer '
+          'confirm that saved Scenes reach it. Restart the game from Pyro to '
+          'get that back.',
+          PlayOutputSource.tool,
+        );
+      }
+      return view;
+    } on VmServiceCallFailed {
+      return null;
+    }
+  }
+
+  /// `_flutter.setAssetBundlePath` to the game's own `build/flutter_assets`;
+  /// whether the engine accepted it.
+  Future<bool> _setAssets(ViewInfo view) async {
+    final base = _baseUri;
+    final vm = _vm;
+    if (base == null || vm == null) return false;
+    try {
+      await vm.setAssetBundlePath(
+        viewId: view.id,
+        isolateId: view.isolateId,
+        // A file path, not a URI: Flutter's own tool sends `toFilePath()`.
+        assetDirectory: Uri.parse(
+          base.endsWith('/') ? base : '$base/',
+        ).resolve('build/flutter_assets').toFilePath(),
+      );
+      return true;
+    } on VmServiceCallFailed {
+      return false;
+    }
+  }
+
+  Future<void> _evict(ViewInfo view, Set<String> paths) async {
+    for (final path in paths) {
+      try {
+        await _vm?.evict(isolateId: view.isolateId, asset: path);
+      } on VmServiceCallFailed {
+        // The reload that follows still rebuilds from disk.
+      }
+    }
+  }
+
+  String? _readScene(String path) {
+    try {
+      return _fs.file(_fs.path.join(projectPath, path)).readAsStringSync();
+    } on FileSystemException {
+      return null;
+    }
   }
 
   ReloadResult _reloadResult(DaemonResponse response, Duration elapsed) {
@@ -327,6 +495,7 @@ final class PlaySession {
 
   void _output(String line, PlayOutputSource source) {
     final redacted = redactAuthCodes(line);
+    if (source == PlayOutputSource.game) _monitor.onLine(redacted);
     _tail.add(redacted);
     if (_tail.length > _tailLength) _tail.removeAt(0);
     _emit(PlayOutput(redacted, source));
@@ -348,6 +517,11 @@ final class PlaySession {
     _terminate?.cancel();
     _kill?.cancel();
     _watcher.close();
+    _monitor.dispose();
+    _wsUri = _baseUri = null;
+    final vm = _vm;
+    _vm = null;
+    if (vm != null) unawaited(vm.close());
     _state = PlayState.stopped;
     final error = _stoppedError();
     for (final pending in _pending.values) {
