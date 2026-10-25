@@ -197,10 +197,15 @@ first severe line and, when the Manifest names a file and message, those. It nev
 a regenerated Registry reloads too). A batch of saves (150 ms of quiet, as for scenes) asks the
 controller for a code reload. The controller:
 
-- sends it at once when the generator state is **Up to date**, **Stopped**, **Not set up** or **Error**
-  (nothing is going to change the files; an error leaves the old generated files);
-- waits when the state is **Generating** (Pyro's own watcher), and reloads on the next **Up to date**
-  or **Error**;
+- sends it at once when the generator state is **Up to date**, **Stopped** or **Not set up** (nothing
+  is going to change the files);
+- waits when the state is **Generating** (Pyro's own watcher), and reloads on the next **Up to date**;
+- **holds** it while the state is **Error**, with a Console note naming the file and message, and
+  reloads once when the generator recovers. The generator reads every file under `lib/`, so an error
+  usually means Dart the game cannot run. Found by hand (2026-10-25): such a reload reached the game as
+  compile-error stubs that throw in `update`, the Flame game loop's ticker died, and the game stayed
+  frozen after the error was undone until a hot restart. (A reload that races ahead of the generator is
+  still rejected by `flutter run` with "DevFS synchronization failed", which is safe.);
 - with **External build_runner** (Pyro cannot read its output), waits until `lib/pyro.g.dart` and
   `lib/pyro.manifest.json` have not changed for 2 seconds after the last save, and reloads
   2 seconds after the save if they never change (the clarified rule, FR-012).

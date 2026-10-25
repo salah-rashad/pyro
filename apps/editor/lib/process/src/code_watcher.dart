@@ -13,9 +13,14 @@ import 'scene_watcher.dart';
 ///
 /// A batch of saves (one [quietPeriod] without a change) asks for one reload,
 /// when the generator is:
-/// - **up to date, stopped, not set up or in error**: nothing is going to
-///   change the generated files, so at once;
+/// - **up to date, stopped or not set up**: nothing is going to change the
+///   generated files, so at once;
 /// - **starting or generating**: on the next state that is none of these;
+/// - **in error**: not at all until it recovers. The generator reads every
+///   file under `lib/`, so an error usually means Dart the game can't run:
+///   a reload would hand it compile-error stubs that throw in its update,
+///   which kills the Flame game loop for good (a hot restart is the only
+///   way back). The save waits, a note says why, and the fix reloads once;
 /// - **External build_runner**: Pyro can't read its output, so [settle]
 ///   after the save, and again [settle] after each change of
 ///   `lib/pyro.manifest.json` or `lib/pyro.g.dart` (a regenerated Registry
@@ -55,6 +60,7 @@ final class CodeWatcher {
   Timer? _quiet;
   Timer? _settling;
   var _needsReload = false;
+  var _heldNoted = false;
 
   /// Starts watching, or notes that the project has no `lib/`.
   void start() {
@@ -88,6 +94,7 @@ final class CodeWatcher {
     _quiet = null;
     _settling = null;
     _needsReload = false;
+    _heldNoted = false;
     unawaited(_files?.cancel());
     unawaited(_states?.cancel());
     _files = null;
@@ -129,15 +136,29 @@ final class CodeWatcher {
     switch (_generatorState().status) {
       case GeneratorStatus.starting || GeneratorStatus.generating:
         break; // Waits for the next state.
+      case GeneratorStatus.error:
+        _hold(_generatorState());
       case GeneratorStatus.external:
         _settleFor(_settle - _quietPeriod);
       case GeneratorStatus.notSetUp ||
           GeneratorStatus.upToDate ||
-          GeneratorStatus.error ||
           GeneratorStatus.stopped:
         _settling?.cancel();
         _fire();
     }
+  }
+
+  /// Waits for the generator to recover, saying so once per stretch of
+  /// errors.
+  void _hold(GeneratorState state) {
+    if (_heldNoted) return;
+    _heldNoted = true;
+    final where = state.file == null ? '' : '${state.file}: ';
+    _onNote?.call(
+      "Not reloading the game's code: the generator reports an error "
+      '($where${state.message ?? 'build failed'}). Reloading it would break '
+      'the running game, so the code reloads once this is fixed.',
+    );
   }
 
   void _settleFor(Duration wait) {
@@ -148,6 +169,7 @@ final class CodeWatcher {
   void _fire() {
     if (!_needsReload) return;
     _needsReload = false;
+    _heldNoted = false;
     _settling = null;
     _onReload();
   }

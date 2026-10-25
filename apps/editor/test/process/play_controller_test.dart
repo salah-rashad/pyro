@@ -722,6 +722,26 @@ void main() {
       });
     });
 
+    test('a save the generator reports as broken is held, in the Console', () {
+      fakeAsync((async) {
+        final h = running(async);
+        h.generator = const GeneratorState(
+          GeneratorStatus.error,
+          file: 'lib/behaviors/spin.dart',
+          message: 'Expected an identifier.',
+        );
+        h.saveCode('lib/behaviors/spin.dart');
+        async.elapse(const Duration(seconds: 10));
+        expect(h.requestsOf('app.restart'), isEmpty);
+        // The note reaches the Console through the watcher's onNote in the app;
+        // here the held save is what matters, and the fix reloads it once.
+        h.generator = const GeneratorState(GeneratorStatus.upToDate);
+        h.generatorStates.add(h.generator);
+        async.flushMicrotasks();
+        expect(h.requestsOf('app.restart'), hasLength(1));
+      });
+    });
+
     test('a save after the stop reloads nothing', () {
       fakeAsync((async) {
         final h = running(async);

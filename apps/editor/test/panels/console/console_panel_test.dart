@@ -223,16 +223,8 @@ void main() {
       expect(find.text('one more'), findsOneWidget);
     });
 
-    testWidgets('text can be selected, and copying leaves the labels out', (
-      tester,
-    ) async {
-      mockClipboard(tester);
-      await pump(tester);
-      buffer
-        ..add('first line', source: ConsoleSource.generator)
-        ..add(longLine, source: ConsoleSource.game);
-      await settle(tester);
-      expect(find.byType(SelectionArea), findsOneWidget);
+    Future<String?> selectAllAndCopy(WidgetTester tester) async {
+      copied = null;
       final region = tester.state<SelectableRegionState>(
         find.byType(SelectableRegion),
       );
@@ -240,10 +232,84 @@ void main() {
       await tester.pump();
       // ignore: deprecated_member_use
       region.copySelection(SelectionChangedCause.toolbar);
-      expect(copied, contains('first line'));
-      expect(copied, contains(longLine));
-      expect(copied, isNot(contains('generator')));
-      expect(copied, isNot(contains('game')));
+      return copied;
+    }
+
+    // Selecting costs a build per streamed row, which broke the flood's frame
+    // budget (SC-006, measured in profile mode), so live rows are plain text.
+    // *Pause to select text* freezes the view into a selectable snapshot of
+    // the latest lines; *Resume* goes back to the live one.
+    testWidgets('live rows are not selectable', (tester) async {
+      await pump(tester);
+      buffer.add('streaming line', source: ConsoleSource.game);
+      await settle(tester);
+      expect(find.byType(SelectionArea), findsNothing);
+      expect(find.byType(SelectableRegion), findsNothing);
+    });
+
+    testWidgets(
+      'Pause freezes the view into selectable text, labels left out',
+      (tester) async {
+        mockClipboard(tester);
+        await pump(tester);
+        buffer
+          ..add('first line', source: ConsoleSource.generator)
+          ..add(longLine, source: ConsoleSource.game);
+        await settle(tester);
+        await tester.tap(find.byTooltip('Pause to select text'));
+        await settle(tester);
+        expect(find.byType(SelectionArea), findsOneWidget);
+        expect(find.text(longLine), findsOneWidget, reason: 'wrapped, in full');
+        final text = await selectAllAndCopy(tester);
+        expect(text, contains('first line'));
+        expect(text, contains(longLine));
+        expect(text, isNot(contains('generator')));
+        expect(text, isNot(contains('game')));
+
+        // The snapshot stands still while output goes on.
+        buffer.add('arrived while paused', source: ConsoleSource.game);
+        await settle(tester);
+        expect(find.text('arrived while paused'), findsNothing);
+        expect(find.byTooltip('Resume'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Resume'));
+        await tester.pump();
+        for (var i = 0; i < 3; i++) {
+          await tester.pump();
+        }
+        expect(find.byType(SelectionArea), findsNothing);
+        expect(find.text('arrived while paused'), findsOneWidget);
+        expect(find.byTooltip('Pause to select text'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'the snapshot holds the latest 1,000 lines, newest at the end',
+      (tester) async {
+        mockClipboard(tester);
+        await pump(tester);
+        for (var i = 0; i < 1500; i++) {
+          buffer.add('numbered $i', source: ConsoleSource.game);
+        }
+        await settle(tester);
+        await tester.tap(find.byTooltip('Pause to select text'));
+        await tester.pump();
+        await tester.pump();
+        // The newest line is the one in view, as with the live tail.
+        expect(find.text('numbered 1499'), findsOneWidget);
+        expect(find.text('numbered 499'), findsNothing);
+      },
+    );
+
+    testWidgets('Pause is off while the Console is empty', (tester) async {
+      await pump(tester);
+      final button = tester.widget<PrIconButton>(
+        find.ancestor(
+          of: find.byTooltip('Pause to select text'),
+          matching: find.byType(PrIconButton),
+        ),
+      );
+      expect(button.onPressed, isNull);
     });
 
     testWidgets('Copy all copies every line of what is shown, labelled', (

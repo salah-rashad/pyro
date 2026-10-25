@@ -19,9 +19,18 @@ import '../../process/providers.dart';
 /// It rebuilds only on the buffer's throttled changes, so a flood of
 /// output costs one build per 50 ms at most (SC-006). Only the rows in view
 /// are built, however tall they are.
+///
+/// Live rows are plain text: letting the selection machinery see every
+/// streamed row cost 15 frames over 16 ms in a flood (profile mode, SC-006).
+/// *Pause to select text* instead freezes the view into a snapshot of the
+/// latest [snapshotLines] lines whose text can be selected; *Resume* goes
+/// back to the live view.
 class ConsolePanel extends ConsumerStatefulWidget {
   /// Creates the panel.
   const ConsolePanel({super.key});
+
+  /// How many of the newest lines the selectable snapshot holds.
+  static const snapshotLines = 1000;
 
   @override
   ConsumerState<ConsolePanel> createState() => _ConsolePanelState();
@@ -35,6 +44,7 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   StreamSubscription<void>? _changes;
   ConsoleBuffer? _buffer;
   var _following = true;
+  List<ConsoleLine>? _snapshot;
 
   @override
   void dispose() {
@@ -86,6 +96,45 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     return false;
   }
 
+  /// Freezes the view into a selectable snapshot, or goes back to live.
+  void _togglePause(List<ConsoleLine> lines) {
+    if (_snapshot != null) {
+      setState(() => _snapshot = null);
+      _follow();
+      return;
+    }
+    final from = lines.length > ConsolePanel.snapshotLines
+        ? lines.length - ConsolePanel.snapshotLines
+        : 0;
+    setState(() => _snapshot = List.of(lines.sublist(from)));
+  }
+
+  /// The snapshot: newest line at the bottom, as in the live view. A
+  /// reversed list starts there, so it never has to jump to the end.
+  Widget _frozen(List<ConsoleLine> lines) => SelectionArea(
+    child: ListView.builder(
+      reverse: true,
+      padding: const EdgeInsets.symmetric(horizontal: PrSpacing.s2),
+      itemCount: lines.length,
+      itemBuilder: (context, index) =>
+          _ConsoleRow(line: lines[lines.length - 1 - index]),
+    ),
+  );
+
+  Widget _list(List<ConsoleLine> lines) => ListView.builder(
+    controller: _scroll,
+    padding: const EdgeInsets.symmetric(horizontal: PrSpacing.s2),
+    itemCount: lines.length,
+    itemBuilder: (context, index) => _rowOf(lines[index]),
+  );
+
+  /// A line never changes, so its row is built once and handed back: the
+  /// framework skips a row that is the very same widget, and the text of a
+  /// line already shown is not laid out again when the list rebuilds.
+  static final _rows = Expando<Widget>('Console rows');
+  static Widget _rowOf(ConsoleLine line) =>
+      _rows[line] ??= _ConsoleRow(line: line);
+
   /// Puts every line shown on the clipboard, each with its source.
   void _copyAll(List<ConsoleLine> lines) {
     final text = lines
@@ -111,13 +160,15 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
       title: 'Console',
       icon: PrIcons.terminal,
       actions: [
-        if (!_following)
-          PrIconButton(
-            icon: PrIcons.chevronDown,
-            tooltip: 'Follow the newest line',
-            size: PrIconButtonSize.small,
-            onPressed: _follow,
-          ),
+        PrIconButton(
+          icon: _snapshot == null ? PrIcons.pause : PrIcons.play,
+          tooltip: _snapshot == null ? 'Pause to select text' : 'Resume',
+          size: PrIconButtonSize.small,
+          onPressed: _snapshot == null && lines.isEmpty
+              ? null
+              : () => _togglePause(lines),
+          disabledReason: 'The Console is empty',
+        ),
         PrIconButton(
           icon: PrIcons.copy,
           tooltip: 'Copy all',
@@ -185,19 +236,24 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                           )
                         : NotificationListener<ScrollNotification>(
                             onNotification: _onScroll,
-                            // Selection reaches the rows in view, and
-                            // follows a drag past the edge by scrolling.
-                            child: SelectionArea(
-                              child: ListView.builder(
-                                controller: _scroll,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: PrSpacing.s2,
-                                ),
-                                itemCount: lines.length,
-                                itemBuilder: (context, index) =>
-                                    _ConsoleRow(line: lines[index]),
-                              ),
-                            ),
+                            child: _snapshot == null
+                                ? Stack(
+                                    children: [
+                                      Positioned.fill(child: _list(lines)),
+                                      if (!_following)
+                                        Positioned(
+                                          right: PrSpacing.s3,
+                                          bottom: PrSpacing.s2,
+                                          child: PrIconButton(
+                                            icon: PrIcons.chevronDown,
+                                            tooltip: 'Follow the newest line',
+                                            size: PrIconButtonSize.small,
+                                            onPressed: _follow,
+                                          ),
+                                        ),
+                                    ],
+                                  )
+                                : _frozen(_snapshot!),
                           ),
                   ),
                 ],
@@ -223,6 +279,10 @@ class _ConsoleRow extends StatelessWidget {
       ConsoleSeverity.warning => c.warning,
       ConsoleSeverity.info => c.textPrimary,
     };
+    final text = Text(
+      line.text,
+      style: PrText.monoConsole.copyWith(color: color),
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -234,12 +294,7 @@ class _ConsoleRow extends StatelessWidget {
             style: PrText.monoConsole.copyWith(color: c.textSecondary),
           ),
         ),
-        Expanded(
-          child: Text(
-            line.text,
-            style: PrText.monoConsole.copyWith(color: color),
-          ),
-        ),
+        Expanded(child: text),
       ],
     );
   }

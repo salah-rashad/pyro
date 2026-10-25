@@ -973,12 +973,19 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
     Hot-swap lands with the IDE attached and after its hot restart, and a new run has a new address.
     Attaching with a stale address waits for ever with no error (VS Code's behavior, so the guide's
     "Stop and Play give a new address" is the thing to say).
-12. **The Console cut every line to one row and its text couldn't be selected or copied** (found by hand with
-    VS Code, 2026-10-25). Fixed: rows wrap to their own height, the text is selectable (`SelectionArea`;
-    the source label is left out of a copy), and *Copy all* puts every line shown, with its source, on the
-    clipboard. Lines are redacted on entry, so nothing copied can carry an address. Rows are no longer a
-    fixed height, so tail-following settles over a few frames instead of a computed offset; only the rows
-    in view are built. **The flood's frame budget (T063) has not been re-measured since this change.**
-13. **Open, reported by the author:** after a syntax error in `spin.dart` was hot reloaded from the IDE and
-    then undone, Pyro reported it as designed but the running game stopped spinning the ship until the
-    game was hot restarted from the IDE. Not reproduced yet.
+12. **The Console cut every line to one row and its text couldn't be selected or copied** (found by hand
+    with VS Code, 2026-10-25). Fixed: rows wrap to their own height with the source in a column of its
+    own; *Copy all* puts every line shown, with its source, on the clipboard; and *Pause to select text*
+    freezes the view into a selectable snapshot of the newest 1,000 lines (*Resume* goes back). Lines are
+    redacted on entry, so nothing copied can carry an address. **Why not select live rows:** letting the
+    selection machinery see every streamed row cost 15–17 frames over 16 ms in the flood (profile mode,
+    measured hands-off, three variants) where plain wrapped rows cost none, and switching selection on
+    and off around a live list either crashed (re-parenting) or, with a remount, stalled ~600 ms (a
+    variable-height list has to build every row between its start and a far offset). So live rows are
+    plain and the snapshot is the selectable view.
+13. **A syntax error hot reloaded and then undone froze the game** (reported by the author, reproduced
+    with Pyro alone). With the generator in error, Pyro's code reload went to the game as compile-error
+    stubs; `Spin.update` threw, the Flame loop's ticker died (the HUD clock stopped, not only the ship)
+    and the undo's reload could not revive it. The code watcher now holds reloads while the generator
+    reports an error, says why in the Console, and reloads once when it recovers (research R10). Checked
+    live: the game kept spinning with the error in place, and after the undo.

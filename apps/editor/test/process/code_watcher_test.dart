@@ -19,12 +19,14 @@ void main() {
   late StreamController<GeneratorState> states;
   late GeneratorState state;
   late int reloads;
+  late List<String> notes;
 
   setUp(() {
     changes = StreamController<FileSystemEvent>.broadcast();
     states = StreamController<GeneratorState>.broadcast();
     state = const GeneratorState(GeneratorStatus.upToDate);
     reloads = 0;
+    notes = [];
   });
 
   MemoryFileSystem withLib() =>
@@ -37,6 +39,7 @@ void main() {
     generatorState: () => state,
     generatorStates: states.stream,
     onReload: () => reloads++,
+    onNote: notes.add,
   )..start();
 
   void save(String path) =>
@@ -74,7 +77,6 @@ void main() {
       GeneratorStatus.upToDate,
       GeneratorStatus.stopped,
       GeneratorStatus.notSetUp,
-      GeneratorStatus.error,
     ]) {
       test('${status.name} reloads at once', () {
         fakeAsync((async) {
@@ -111,7 +113,7 @@ void main() {
 
   group('while the generator generates', () {
     for (final busy in [GeneratorStatus.generating, GeneratorStatus.starting]) {
-      for (final done in [GeneratorStatus.upToDate, GeneratorStatus.error]) {
+      for (final done in [GeneratorStatus.upToDate, GeneratorStatus.stopped]) {
         test('${busy.name}: waits for ${done.name}', () {
           fakeAsync((async) {
             state = GeneratorState(busy);
@@ -161,6 +163,100 @@ void main() {
         elapse(async, Duration.zero);
         expect(reloads, 1);
       });
+    });
+  });
+
+  // A reload of code the generator could not read goes to the game as
+  // compile-error stubs that throw in its update: the Flame loop's ticker
+  // dies and only a hot restart brings it back (found by hand, 2026-10-25).
+  group('while the generator reports an error', () {
+    const failed = GeneratorState(
+      GeneratorStatus.error,
+      file: 'lib/behaviors/spin.dart',
+      message: '21:20: Expected an identifier.',
+    );
+
+    test('a save is held, with a note saying why, and nothing reloads', () {
+      fakeAsync((async) {
+        state = failed;
+        watcher();
+        save('$lib/behaviors/spin.dart');
+        elapse(async, const Duration(seconds: 30));
+        expect(reloads, 0);
+        expect(notes, hasLength(1));
+        expect(notes.single, contains('lib/behaviors/spin.dart'));
+        expect(notes.single, contains('Expected an identifier'));
+        expect(notes.single, contains('reload'));
+      });
+    });
+
+    test('a build that fails after the save holds it too', () {
+      fakeAsync((async) {
+        state = const GeneratorState(GeneratorStatus.generating);
+        watcher();
+        save('$lib/behaviors/spin.dart');
+        elapse(async, const Duration(seconds: 1));
+        state = failed;
+        states.add(state);
+        elapse(async, const Duration(seconds: 30));
+        expect(reloads, 0);
+        expect(notes, hasLength(1));
+      });
+    });
+
+    test('the fix reloads once, when the generator is up to date again', () {
+      fakeAsync((async) {
+        state = failed;
+        watcher();
+        save('$lib/behaviors/spin.dart');
+        elapse(async, const Duration(seconds: 5));
+        // The undo: more saves, a build, then done.
+        save('$lib/behaviors/spin.dart');
+        elapse(async, const Duration(seconds: 1));
+        generator(GeneratorStatus.generating);
+        elapse(async, const Duration(seconds: 1));
+        expect(reloads, 0);
+        generator(GeneratorStatus.upToDate);
+        elapse(async, Duration.zero);
+        expect(reloads, 1);
+        elapse(async, const Duration(seconds: 10));
+        expect(reloads, 1);
+      });
+    });
+
+    test('one note per stretch of errors, not one per save', () {
+      fakeAsync((async) {
+        state = failed;
+        watcher();
+        for (var i = 0; i < 4; i++) {
+          save('$lib/a.dart');
+          elapse(async, const Duration(seconds: 1));
+        }
+        expect(notes, hasLength(1));
+        // After it recovered and failed again, there is a new note.
+        generator(GeneratorStatus.upToDate);
+        elapse(async, Duration.zero);
+        state = failed;
+        save('$lib/a.dart');
+        elapse(async, const Duration(seconds: 1));
+        expect(notes, hasLength(2));
+      });
+    });
+
+    test('a generator that stopped or is not set up no longer judges', () {
+      for (final gone in [GeneratorStatus.stopped, GeneratorStatus.notSetUp]) {
+        fakeAsync((async) {
+          reloads = 0;
+          state = failed;
+          watcher();
+          save('$lib/a.dart');
+          elapse(async, const Duration(seconds: 1));
+          expect(reloads, 0);
+          generator(gone);
+          elapse(async, Duration.zero);
+          expect(reloads, 1, reason: gone.name);
+        });
+      }
     });
   });
 
