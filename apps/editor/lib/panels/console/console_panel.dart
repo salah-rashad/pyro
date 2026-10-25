@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pyro_ui/pyro_ui.dart';
 
@@ -11,14 +12,16 @@ import '../../process/providers.dart';
 /// game and Pyro lines in one virtualized list, filterable by source,
 /// following the newest line until the user scrolls up.
 ///
+/// A long line wraps, and the text can be selected and copied; *Copy all*
+/// copies every line shown, labelled. Lines are redacted when they enter the
+/// buffer, so nothing copied can carry a debugger address (FR-025).
+///
 /// It rebuilds only on the buffer's throttled changes, so a flood of
-/// output costs one build per 50 ms at most (SC-006).
+/// output costs one build per 50 ms at most (SC-006). Only the rows in view
+/// are built, however tall they are.
 class ConsolePanel extends ConsumerStatefulWidget {
   /// Creates the panel.
   const ConsolePanel({super.key});
-
-  /// Every row's height: one line of `PrText.monoConsole`.
-  static const double rowExtent = 18;
 
   @override
   ConsumerState<ConsolePanel> createState() => _ConsolePanelState();
@@ -32,7 +35,6 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   StreamSubscription<void>? _changes;
   ConsoleBuffer? _buffer;
   var _following = true;
-  var _rows = 0;
 
   @override
   void dispose() {
@@ -52,16 +54,18 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     });
   }
 
-  void _jumpToTailAfterLayout() {
+  /// Scrolls to the newest line once the list has laid out. Rows wrap to
+  /// different heights, so the list only estimates its end until the last
+  /// rows are laid out: jump, and again on the next frame until the end stops
+  /// moving (a few frames at most).
+  void _jumpToTailAfterLayout([int attempts = 4]) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
+      if (!mounted || !_scroll.hasClients || !_following) return;
       final position = _scroll.position;
-      // Computed, not `maxScrollExtent`: a list scrolled away from its end
-      // keeps its old extent until it lays out the end again.
-      final end = _rows * ConsolePanel.rowExtent - position.viewportDimension;
-      _scroll.jumpTo(
-        end > position.maxScrollExtent ? end : position.maxScrollExtent,
-      );
+      final end = position.maxScrollExtent;
+      final moved = position.pixels < end - 1;
+      if (moved) _scroll.jumpTo(end);
+      if (moved && attempts > 1) _jumpToTailAfterLayout(attempts - 1);
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
@@ -82,6 +86,14 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     return false;
   }
 
+  /// Puts every line shown on the clipboard, each with its source.
+  void _copyAll(List<ConsoleLine> lines) {
+    final text = lines
+        .map((line) => '${_label(line.source).trimRight()}  ${line.text}')
+        .join('\n');
+    unawaited(Clipboard.setData(ClipboardData(text: text)));
+  }
+
   void _follow() {
     setState(() => _following = true);
     _jumpToTailAfterLayout();
@@ -93,7 +105,6 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     _listenTo(buffer);
     final sources = ref.watch(consoleSourceFilterProvider);
     final lines = buffer.filtered(sources);
-    _rows = lines.length;
     final c = PrColors.of(context);
     final only = sources.length == 1 ? sources.single : null;
     return PrPanel(
@@ -107,6 +118,13 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
             size: PrIconButtonSize.small,
             onPressed: _follow,
           ),
+        PrIconButton(
+          icon: PrIcons.copy,
+          tooltip: 'Copy all',
+          size: PrIconButtonSize.small,
+          onPressed: lines.isEmpty ? null : () => _copyAll(lines),
+          disabledReason: 'The Console is empty',
+        ),
         PrIconButton(
           icon: PrIcons.trash,
           tooltip: 'Clear',
@@ -167,15 +185,18 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                           )
                         : NotificationListener<ScrollNotification>(
                             onNotification: _onScroll,
-                            child: ListView.builder(
-                              controller: _scroll,
-                              itemExtent: ConsolePanel.rowExtent,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: PrSpacing.s2,
+                            // Selection reaches the rows in view, and
+                            // follows a drag past the edge by scrolling.
+                            child: SelectionArea(
+                              child: ListView.builder(
+                                controller: _scroll,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: PrSpacing.s2,
+                                ),
+                                itemCount: lines.length,
+                                itemBuilder: (context, index) =>
+                                    _ConsoleRow(line: lines[index]),
                               ),
-                              itemCount: lines.length,
-                              itemBuilder: (context, index) =>
-                                  _ConsoleRow(line: lines[index]),
                             ),
                           ),
                   ),
@@ -186,7 +207,9 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   }
 }
 
-/// One Console line: its source, then its text in the severity's colour.
+/// One Console line: its source in a column of its own, then its text in
+/// the severity's colour, wrapping under itself. The label is left out of a
+/// selection, so a copy holds the text alone.
 class _ConsoleRow extends StatelessWidget {
   const _ConsoleRow({required this.line});
 
@@ -200,26 +223,31 @@ class _ConsoleRow extends StatelessWidget {
       ConsoleSeverity.warning => c.warning,
       ConsoleSeverity.info => c.textPrimary,
     };
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '${_label(line.source)}  ',
-            style: TextStyle(color: c.textSecondary),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectionContainer.disabled(
+          child: Text(
+            '${_label(line.source)}  ',
+            maxLines: 1,
+            softWrap: false,
+            style: PrText.monoConsole.copyWith(color: c.textSecondary),
           ),
-          TextSpan(text: line.text),
-        ],
-      ),
-      maxLines: 1,
-      softWrap: false,
-      overflow: TextOverflow.ellipsis,
-      style: PrText.monoConsole.copyWith(color: color),
+        ),
+        Expanded(
+          child: Text(
+            line.text,
+            style: PrText.monoConsole.copyWith(color: color),
+          ),
+        ),
+      ],
     );
   }
-
-  static String _label(ConsoleSource source) => switch (source) {
-    ConsoleSource.generator => 'generator',
-    ConsoleSource.game => 'game     ',
-    ConsoleSource.pyro => 'pyro     ',
-  };
 }
+
+/// The source's name, padded to one width so the texts line up.
+String _label(ConsoleSource source) => switch (source) {
+  ConsoleSource.generator => 'generator',
+  ConsoleSource.game => 'game     ',
+  ConsoleSource.pyro => 'pyro     ',
+};

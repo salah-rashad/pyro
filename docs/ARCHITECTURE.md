@@ -931,8 +931,6 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
 
 ### Not verified yet (by hand, on the reference Mac)
 
-- Real VS Code (Dart-Code) attach, a breakpoint, IDE reloads and hot restarts, and the new address
-  after Stop and Play (T054, FR-028).
 - SC-007's 1 s limit for Play being available after an exit: the tool round trip is longer, so it
   was only seen to be available at the first look (the controller tests cover the timing).
 - **The dry run (T057–T059, SC-001, SC-009)** is the last task of the early preview; its report
@@ -942,11 +940,12 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
 
 1. **`_flutter.setAssetBundlePath` wants a file path**, not the `file://` URI `app.debugPort`
    reports as the DevFS base.
-2. **After an IDE's hot restart the game's output stops reaching Pyro** (no `Scene reloaded`, no
+2. **After `flutter attach`'s hot restart the game's output stops reaching Pyro** (no `Scene reloaded`, no
    `Scene loaded`), though Pyro's own saves still return code 0. Whether the swap still lands was
    not established. The session now notices the view's isolate changed outside Pyro, disarms the
    Hot-swap monitor and says so in the Console once; three saves after an `R` from `flutter
-   attach` gave no false failure.
+   attach` gave no false failure. **With real VS Code (Dart-Code), by hand, output kept reaching
+   Pyro after a hot restart and saves still landed**, so this looks specific to the stand-in.
 3. **`flutter create --platforms=macos .` already writes** `com.apple.security.network.server` in
    `DebugProfile.entitlements`; the README says to check it only for older or edited projects.
 4. **Without the `pyro_annotations` `dependency_overrides` entry a git-dependency project does not
@@ -970,3 +969,16 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
     file?` / `Error:` lines at every Play of `example/`**, and the game still starts. The cause is
     not found; it is probably the `--project-root` link outside the workspace, so it may not show for
     a standalone project.
+11. **Real VS Code attach works** (by hand, 2026-10-25): the copied address attaches, a breakpoint hits,
+    Hot-swap lands with the IDE attached and after its hot restart, and a new run has a new address.
+    Attaching with a stale address waits for ever with no error (VS Code's behavior, so the guide's
+    "Stop and Play give a new address" is the thing to say).
+12. **The Console cut every line to one row and its text couldn't be selected or copied** (found by hand with
+    VS Code, 2026-10-25). Fixed: rows wrap to their own height, the text is selectable (`SelectionArea`;
+    the source label is left out of a copy), and *Copy all* puts every line shown, with its source, on the
+    clipboard. Lines are redacted on entry, so nothing copied can carry an address. Rows are no longer a
+    fixed height, so tail-following settles over a few frames instead of a computed offset; only the rows
+    in view are built. **The flood's frame budget (T063) has not been re-measured since this change.**
+13. **Open, reported by the author:** after a syntax error in `spin.dart` was hot reloaded from the IDE and
+    then undone, Pyro reported it as designed but the running game stopped spinning the ship until the
+    game was hot restarted from the IDE. Not reproduced yet.

@@ -201,8 +201,8 @@ Behavior's class shows it as Missing with its values kept. ✅
   re-point that keep it working with an IDE attached (§9.3, *Q74*); auto code reload after the
   generator goes idle (*Q61*); *Attach debugger* copying the current URI (*Q81*); the
   image-restart toast (*Q72*); "Game stopped" handling (*Q63*). Built and tested headless
-  (decisions *Q125–Q138*); still to do by hand on the reference Mac: real VS Code attach, the
-  profile-mode frame check, and `specs/007-play/quickstart.md` §3.1–§3.4
+  (decisions *Q125–Q138*); still to do on the reference Mac: nothing but the dry run; the by-hand checks
+  (real VS Code attach, the frame check, `specs/007-play/quickstart.md` §3) are done
 - [x] **README recipe** for adding Pyro to a project (stands in for the "Add Pyro" flow): the
   packages as git dependencies on this repository (they aren't on pub.dev until Phase 8; they
   depend on each other by version, so the recipe needs `dependency_overrides` for them too, as

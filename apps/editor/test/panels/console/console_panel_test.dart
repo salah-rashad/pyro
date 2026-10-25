@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pyro/panels/panels.dart';
 import 'package:pyro/process/process.dart';
 import 'package:pyro/process/providers.dart';
+import 'package:pyro_ui/pyro_ui.dart';
 
 import '../../helpers/pump.dart';
 
@@ -46,9 +48,19 @@ void main() {
     final pyro = tester.getTopLeft(row('Play started'));
     expect(generator.dy, lessThan(game.dy));
     expect(game.dy, lessThan(pyro.dy));
-    expect(row('generator  building'), findsOneWidget);
-    expect(row('game       hello from the game'), findsOneWidget);
-    expect(row('pyro       Play started'), findsOneWidget);
+    // The source is a label beside the text, which wraps on its own.
+    for (final label in ['generator', 'game', 'pyro']) {
+      expect(
+        find.textContaining(label, findRichText: true),
+        findsNWidgets(label == 'game' ? 2 : 1),
+        reason: 'the label, and for "game" the line that says "the game"',
+      );
+    }
+    expect(
+      tester.getTopLeft(row('building')).dx,
+      tester.getTopLeft(row('hello from the game')).dx,
+      reason: 'the texts line up in one column',
+    );
   });
 
   testWidgets('filters by each source, and All shows every line again', (
@@ -106,8 +118,10 @@ void main() {
     expect(row('line 200'), findsNothing, reason: 'scrolled up: stays put');
 
     await tester.tap(find.byTooltip('Follow the newest line'));
-    await tester.pump();
-    await tester.pump();
+    // Rows differ in height, so the end is settled over a few frames.
+    for (var i = 0; i < 4; i++) {
+      await tester.pump();
+    }
     expect(row('line 200'), findsOneWidget);
     buffer.add('line 201', source: ConsoleSource.game);
     await settle(tester);
@@ -148,5 +162,136 @@ void main() {
     }
     await settle(tester);
     expect(buffer.lines.length, PlayDefaults.consoleCapacity);
+  });
+
+  group('long lines and copying', () {
+    final longLine = [for (var i = 0; i < 60; i++) 'word$i'].join(' ');
+    String? copied;
+
+    setUp(() => copied = null);
+
+    void mockClipboard(WidgetTester tester) {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+    }
+
+    testWidgets('a long line wraps and shows in full', (tester) async {
+      await pump(tester);
+      buffer.add('short', source: ConsoleSource.game);
+      buffer.add(longLine, source: ConsoleSource.game);
+      await settle(tester);
+      final text = tester.widget<Text>(find.text(longLine));
+      expect(text.maxLines, isNull);
+      expect(text.overflow, isNot(TextOverflow.ellipsis));
+      final shortHeight = tester.getSize(find.text('short')).height;
+      expect(
+        tester.getSize(find.text(longLine)).height,
+        greaterThan(shortHeight * 2),
+        reason: 'several rows of text, not one cut with an ellipsis',
+      );
+    });
+
+    testWidgets('the newest line stays in view when rows wrap', (tester) async {
+      await pump(tester);
+      for (var i = 0; i < 100; i++) {
+        buffer.add('$i $longLine', source: ConsoleSource.game);
+      }
+      buffer.add('the last line', source: ConsoleSource.pyro);
+      await settle(tester);
+      await tester.pump();
+      expect(find.text('the last line'), findsOneWidget);
+      expect(
+        tester.getBottomLeft(find.text('the last line')).dy,
+        lessThanOrEqualTo(tester.getBottomLeft(find.byType(ListView)).dy),
+      );
+      buffer.add('one more', source: ConsoleSource.pyro);
+      await settle(tester);
+      await tester.pump();
+      expect(find.text('one more'), findsOneWidget);
+    });
+
+    testWidgets('text can be selected, and copying leaves the labels out', (
+      tester,
+    ) async {
+      mockClipboard(tester);
+      await pump(tester);
+      buffer
+        ..add('first line', source: ConsoleSource.generator)
+        ..add(longLine, source: ConsoleSource.game);
+      await settle(tester);
+      expect(find.byType(SelectionArea), findsOneWidget);
+      final region = tester.state<SelectableRegionState>(
+        find.byType(SelectableRegion),
+      );
+      region.selectAll(SelectionChangedCause.toolbar);
+      await tester.pump();
+      // ignore: deprecated_member_use
+      region.copySelection(SelectionChangedCause.toolbar);
+      expect(copied, contains('first line'));
+      expect(copied, contains(longLine));
+      expect(copied, isNot(contains('generator')));
+      expect(copied, isNot(contains('game')));
+    });
+
+    testWidgets('Copy all copies every line of what is shown, labelled', (
+      tester,
+    ) async {
+      mockClipboard(tester);
+      await pump(tester);
+      buffer
+        ..add('from the generator', source: ConsoleSource.generator)
+        ..add('from the game', source: ConsoleSource.game)
+        ..add(longLine, source: ConsoleSource.game);
+      await settle(tester);
+      await tester.tap(find.byTooltip('Copy all'));
+      await tester.pump();
+      expect(
+        copied,
+        'generator  from the generator\ngame  from the game\ngame  $longLine',
+      );
+      await tester.tap(find.text('Game'));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Copy all'));
+      await tester.pump();
+      expect(copied, 'game  from the game\ngame  $longLine');
+    });
+
+    testWidgets('Copy all is off while the Console is empty', (tester) async {
+      await pump(tester);
+      final button = tester.widget<PrIconButton>(
+        find.ancestor(
+          of: find.byTooltip('Copy all'),
+          matching: find.byType(PrIconButton),
+        ),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('a copied line carries no auth code', (tester) async {
+      mockClipboard(tester);
+      await pump(tester);
+      buffer.add(
+        'attached to ws://127.0.0.1:5001/AbCdEf123456=/ws now',
+        source: ConsoleSource.game,
+      );
+      await settle(tester);
+      await tester.tap(find.byTooltip('Copy all'));
+      await tester.pump();
+      expect(copied, contains('<auth-code>'));
+      expect(copied, isNot(contains('AbCdEf123456')));
+    });
   });
 }
