@@ -911,6 +911,8 @@ flowchart LR
 | SC-003 rebuilds | 0 for no-op reloads and code-only reloads; a burst of ten saves is 1 reload |
 | SC-004 save to the Manifest on disk (`benchmark/generator_takeover.dart`) | median 1054 ms, worst 2990 ms (limit 5 s) |
 | SC-008 the user's own `build_runner` while Pyro's runs | 10 of 10 builds finished; Pyro's run came back by itself 10 times; after `build_runner stop` it stayed stopped |
+| Frame check (T063, SC-006): Pyro in profile mode, a game printing 5,000 lines in a second three times, Console following the tail | 68 frames: build p99 5.6 ms, max 5.8 ms; raster max 3.6 ms; **0 frames over 16 ms** |
+| SC-004 in the window: a new annotated Behavior in the inspector's Behaviors list | in the Manifest 3.5 s after the save, listed a moment later; removed again when the file was deleted |
 | Console flood (`benchmark/console_throughput.dart`) | 5,000 lines a second for 10 s: 8.1–8.9 µs a line with redaction, 16.5 notifications a second (limit 20), 10,000 of 10,000 lines kept, no auth code kept |
 | Release build free of Hot-swap code (FR-027) | ✅ **0** matches for `[pyro] Scene` and **0** for `couldn't Hot-swap` in the release `App.framework/App`; the debug kernel has **7** and **2**, and `Scene loaded` is in the release binary (2), so the search works |
 
@@ -931,10 +933,8 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
 
 - Real VS Code (Dart-Code) attach, a breakpoint, IDE reloads and hot restarts, and the new address
   after Stop and Play (T054, FR-028).
-- The profile-mode frame check with a game printing 5,000 lines in a second (T063, SC-006).
-- Quickstart §3.3 and §3.4 in the window: the status bar and the Add list (T038); a window closed
-  by hand, an image changed and unchanged, ⌘Q with a game running, force-quit and reopen, and
-  SC-007's timing (T075).
+- SC-007's 1 s limit for Play being available after an exit: the tool round trip is longer, so it
+  was only seen to be available at the first look (the controller tests cover the timing).
 - **The dry run (T057–T059, SC-001, SC-009)** is the last task of the early preview; its report
   will be `specs/007-play/dry-run-report.md`. Until it passes, SC-001 is not claimed.
 
@@ -957,3 +957,16 @@ These are the single place to look when a Flutter release breaks Hot-swap with a
    two reloads, not one.
 6. **`ProjectNotifier.close` has no caller yet**, since no *Close project* command exists;
    `closeProject` guards it for when one does.
+7. **The window checks (T075, T038) found three bugs**, fixed with tests: `example/` is a pub-workspace
+   member, so its lock is the root's and the generator read "not set up" (`findPubspecLock`); the
+   "Image changed" toast stayed after the game closed; quitting Pyro never stopped its own
+   `build_runner`.
+8. **Under puro `dart` is a wrapper that does not `exec`**, so SIGTERM to it left `build_runner` running;
+   the supervisor now signals everything below it (`processDescendants`). Checked on a real
+   `build_runner`: nothing left after `dispose`, and nothing left after quitting a profile build.
+9. **There is no visible way to open an existing Scene**: only ⌘O, with no menu entry or button.
+   The README does not mention it. Left for the author to decide.
+10. **The Console shows red `Did you run this command from the same directory as your pubspec.yaml
+    file?` / `Error:` lines at every Play of `example/`**, and the game still starts. The cause is
+    not found; it is probably the `--project-root` link outside the workspace, so it may not show for
+    a standalone project.
