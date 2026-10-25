@@ -16,6 +16,7 @@ import '../app/app.dart';
 import '../project/project.dart';
 import 'process.dart';
 import 'src/image_use.dart';
+import 'src/process_tree.dart';
 
 /// The file system Play reads the project through; tests inject a memory
 /// one.
@@ -114,6 +115,12 @@ final generatorProcessStarterProvider = Provider<ProcessStarter>(
   (ref) => Process.start,
 );
 
+/// Lists the processes below the generator's, so stopping it reaches a
+/// `build_runner` started through a wrapper `dart`; tests inject a fake
+/// process tree (a fake pid must never be looked up for real).
+final generatorDescendantsProvider =
+    Provider<Future<List<int>> Function(int pid)>((ref) => processDescendants);
+
 /// Looks at the project's `build_runner` lock; tests inject a fake.
 final buildLockProbeProvider = Provider<BuildLockProbe>(
   (ref) => const BuildLockProbe(),
@@ -146,6 +153,7 @@ final generatorProvider = Provider<GeneratorSupervisor?>((ref) {
       ref.watch(playFileSystemProvider),
     ),
     startProcess: ref.watch(generatorProcessStarterProvider),
+    descendants: ref.watch(generatorDescendantsProvider),
     probe: ref.watch(buildLockProbeProvider),
   );
   var continuesSevere = false;

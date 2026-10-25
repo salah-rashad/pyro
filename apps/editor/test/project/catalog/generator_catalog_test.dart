@@ -51,6 +51,7 @@ void main() {
         manifestWatchProvider.overrideWithValue((_) => events.stream),
         playFileSystemProvider.overrideWithValue(fs),
         generatorProcessStarterProvider.overrideWithValue(spawns.call),
+        generatorDescendantsProvider.overrideWithValue((_) async => const []),
         buildLockProbeProvider.overrideWithValue(probe),
       ],
     );

@@ -189,6 +189,7 @@ void main() {
         tester,
         extra: [
           generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          generatorDescendantsProvider.overrideWithValue((_) async => const []),
           buildLockProbeProvider.overrideWithValue(
             FakeProbe()..fallback = LockProbeResult.free,
           ),
@@ -218,6 +219,7 @@ void main() {
         tester,
         extra: [
           generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          generatorDescendantsProvider.overrideWithValue((_) async => const []),
           buildLockProbeProvider.overrideWithValue(
             FakeProbe()..fallback = LockProbeResult.held,
           ),

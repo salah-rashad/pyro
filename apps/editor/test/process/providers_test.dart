@@ -208,6 +208,7 @@ void main() {
         overrides: [
           playFileSystemProvider.overrideWithValue(fs),
           generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          generatorDescendantsProvider.overrideWithValue((_) async => const []),
           buildLockProbeProvider.overrideWithValue(probe),
         ],
       );
@@ -371,6 +372,9 @@ void main() {
               return game.start(path, runLink: runLink);
             }),
             generatorProcessStarterProvider.overrideWithValue(spawns.call),
+            generatorDescendantsProvider.overrideWithValue(
+              (_) async => const [],
+            ),
             buildLockProbeProvider.overrideWithValue(
               FakeProbe()..fallback = LockProbeResult.free,
             ),

@@ -10,13 +10,18 @@ import 'fake_process.dart';
 
 /// A supervisor over fakes.
 final class Harness {
-  Harness({String? setUpProblem}) {
+  Harness({String? setUpProblem, List<int>? below}) {
     supervisor = GeneratorSupervisor(
       projectPath: projectPath,
       dart: '/sdk/bin/dart',
       setUpProblem: setUpProblem,
       startProcess: spawns.call,
       probe: probe,
+      descendants: below == null ? null : (pid) async => below,
+      killPid: (pid, signal) {
+        killed.add((pid, signal));
+        return true;
+      },
     );
     supervisor.states.listen(states.add);
     supervisor.lines.listen(lines.add);
@@ -24,6 +29,7 @@ final class Harness {
 
   final spawns = Spawns();
   final probe = FakeProbe();
+  final killed = <(int, ProcessSignal)>[];
   late final GeneratorSupervisor supervisor;
   final states = <GeneratorState>[];
   final lines = <String>[];
@@ -439,6 +445,46 @@ void main() {
         });
       },
     );
+
+    test('a wrapper `dart` is stopped with everything below it', () {
+      fakeAsync((async) {
+        final h = Harness(below: [31, 30]);
+        unawaited(h.supervisor.start());
+        async.flushMicrotasks();
+        var done = false;
+        unawaited(h.supervisor.dispose().then((_) => done = true));
+        async.flushMicrotasks();
+        expect(h.killed, [
+          (31, ProcessSignal.sigterm),
+          (30, ProcessSignal.sigterm),
+        ]);
+        expect(h.spawns.last.signals, [ProcessSignal.sigterm]);
+        async.elapse(PlayDefaults.stopTimeout);
+        expect(h.killed.skip(2), [
+          (31, ProcessSignal.sigkill),
+          (30, ProcessSignal.sigkill),
+        ]);
+        expect(h.spawns.last.signals.last, ProcessSignal.sigkill);
+        h.spawns.last.exit(-9);
+        async.flushMicrotasks();
+        expect(done, isTrue);
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
+
+    test('a wrapper that exits in time is not signalled again', () {
+      fakeAsync((async) {
+        final h = Harness(below: [30]);
+        unawaited(h.supervisor.start());
+        async.flushMicrotasks();
+        unawaited(h.supervisor.dispose());
+        async.flushMicrotasks();
+        h.spawns.last.exit(-15);
+        async.elapse(PlayDefaults.stopTimeout * 2);
+        expect(h.killed, [(30, ProcessSignal.sigterm)]);
+        expect(async.pendingTimers, isEmpty);
+      });
+    });
 
     test('never touches an external run and cancels the re-probe', () {
       fakeAsync((async) {
