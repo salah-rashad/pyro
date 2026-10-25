@@ -911,7 +911,7 @@ flowchart LR
 | SC-003 rebuilds | 0 for no-op reloads and code-only reloads; a burst of ten saves is 1 reload |
 | SC-004 save to the Manifest on disk (`benchmark/generator_takeover.dart`) | median 1054 ms, worst 2990 ms (limit 5 s) |
 | SC-008 the user's own `build_runner` while Pyro's runs | 10 of 10 builds finished; Pyro's run came back by itself 10 times; after `build_runner stop` it stayed stopped |
-| Frame check (T063, SC-006): Pyro in profile mode, a game printing 5,000 lines in a second three times, Console following the tail | 68 frames: build p99 5.6 ms, max 5.8 ms; raster max 3.6 ms; **0 frames over 16 ms** |
+| Frame check (T063, SC-006): Pyro in profile mode, a game printing 5,000 lines in a second three times (some lines long enough to wrap), Console following the tail, final Console design, flood window only, twice | 128 and 125 frames: build max 5.9 and 6.6 ms, raster max 3.2 ms; **0 frames over 16 ms**. With rows selectable live: 15–17 over (max 26 ms). The fixed-height Console before wrapping: 68 frames, 0 over |
 | SC-004 in the window: a new annotated Behavior in the inspector's Behaviors list | in the Manifest 3.5 s after the save, listed a moment later; removed again when the file was deleted |
 | Console flood (`benchmark/console_throughput.dart`) | 5,000 lines a second for 10 s: 8.1–8.9 µs a line with redaction, 16.5 notifications a second (limit 20), 10,000 of 10,000 lines kept, no auth code kept |
 | Release build free of Hot-swap code (FR-027) | ✅ **0** matches for `[pyro] Scene` and **0** for `couldn't Hot-swap` in the release `App.framework/App`; the debug kernel has **7** and **2**, and `Scene loaded` is in the release binary (2), so the search works |
