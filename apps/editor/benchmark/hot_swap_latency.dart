@@ -81,7 +81,7 @@ Future<void> main(List<String> args) async {
         'macos',
         '--debug-uri',
         session.debuggerAddress!,
-      ]);
+      ], workingDirectory: project);
       final attached = Completer<void>();
       attach.stdout
           .transform(utf8.decoder)

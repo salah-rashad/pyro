@@ -35,10 +35,12 @@ dependencies:
   pyro_annotations:
     git:
       url: https://github.com/salah-rashad/pyro.git
+      ref: <commit>
       path: packages/pyro_annotations
   pyro_runtime:
     git:
       url: https://github.com/salah-rashad/pyro.git
+      ref: <commit>
       path: packages/pyro_runtime
 
 dev_dependencies:
@@ -46,12 +48,14 @@ dev_dependencies:
   pyro_generator:
     git:
       url: https://github.com/salah-rashad/pyro.git
+      ref: <commit>
       path: packages/pyro_generator
 
 dependency_overrides:
   pyro_annotations:
     git:
       url: https://github.com/salah-rashad/pyro.git
+      ref: <commit>
       path: packages/pyro_annotations
 ```
 

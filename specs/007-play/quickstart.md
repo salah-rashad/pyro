@@ -1,7 +1,7 @@
 # Quickstart: validating Play (Phase 5)
 
-Three layers, cheapest first. Layers 1 and 2 run in CI (macOS, Windows, Linux) with no Flutter
-SDK, game or window. Layer 3 needs the reference Mac. Success criteria come from
+Three layers, cheapest first. Layers 1 and 2 run in CI (macOS, Windows, Linux) with no device,
+game or window. Layer 3 needs the reference Mac. Success criteria come from
 [spec.md](spec.md); contracts are in [contracts/](contracts/).
 
 **Prerequisites:** the repository at its root, `dart pub get` done once, Flutter 3.44.2 on `PATH`

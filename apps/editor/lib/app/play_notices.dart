@@ -47,7 +47,6 @@ class _NoticeListenerState extends ConsumerState<_NoticeListener> {
     if (identical(controller, _controller)) return;
     unawaited(_notices?.cancel());
     _controller = controller;
-    _shown.clear();
     _notices = controller?.notices.listen(_show);
   }
 

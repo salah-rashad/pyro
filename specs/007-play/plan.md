@@ -182,7 +182,7 @@ apps/editor/
     └── fixtures/transcripts/      # NEW: recorded daemon and build_runner output (ide-attached, restart,
                                    #      build-failure, exit-without-stop, takeover, stop)
 packages/pyro_runtime/
-└── lib/src/loader/pyro_scene.dart # EDIT — two debug-only report lines (kDebugMode), tests in test/loader/
+└── lib/src/loader/pyro_scene.dart # EDIT — three debug-only report lines (loaded, reloaded, not reloaded; kDebugMode), tests in test/loader/
 example/
 └── lib/example_game.dart          # EDIT — drops its own "Scene reloaded" print (the Runtime prints it now);
                                    #        the benchmark and quickstart wait for the Runtime's line
@@ -206,4 +206,4 @@ dependency or crosses a boundary MUST say so"):
 | Item | Why needed | Simpler alternative rejected because |
 |---|---|---|
 | `vm_service` as a runtime dependency of the app | The asset re-point calls `_flutter.listViews`, `_flutter.setAssetBundlePath` and `ext.flutter.evict` over the VM service before every reload, and a `flutter attach` stand-in test needs the same client | A hand-written WebSocket JSON-RPC client was rejected: it repeats request ids, error mapping, stream shutdown and reconnect rules that `vm_service` already tests, for the cost of a package the repository already resolves |
-| `pyro_runtime` prints two debug-only report lines | FR-011 needs a signal that exists in every game; today the only such line is printed by `example/`'s code, so a tester's game would never show it | Reading the line from each game's own code was rejected: it cannot work in a tester's game. Asking the VM service for a rebuild count was rejected: it needs a Runtime service extension (*Q66* chose none) for the same effect as one line |
+| `pyro_runtime` prints three debug-only report lines | FR-011 needs a signal that exists in every game; today the only such line is printed by `example/`'s code, so a tester's game would never show it | Reading the line from each game's own code was rejected: it cannot work in a tester's game. Asking the VM service for a rebuild count was rejected: it needs a Runtime service extension (*Q66* chose none) for the same effect as one line |

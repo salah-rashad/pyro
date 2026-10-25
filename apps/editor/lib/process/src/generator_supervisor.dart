@@ -159,10 +159,13 @@ final class GeneratorSupervisor {
     );
   }
 
+  // Lenient decoding and a swallowed stream error keep this future
+  // completing, so `_onExit` still runs when the output is malformed.
   Future<void> _follow(Stream<List<int>> stream) => stream
-      .transform(utf8.decoder)
+      .transform(const Utf8Decoder(allowMalformed: true))
       .transform(const LineSplitter())
-      .forEach(_onLine);
+      .forEach(_onLine)
+      .catchError((Object _) {});
 
   void _onLine(String line) {
     if (_disposed) return;

@@ -102,14 +102,16 @@ final class _RealVmServiceLink implements VmServiceLink {
   @override
   Future<List<ViewInfo>> listViews() async {
     final response = await _call('_flutter.listViews');
-    final views = (response.json?['views'] as List?) ?? const [];
+    final views = response.json?['views'];
+    if (views is! List) return const [];
+    // A malformed entry is skipped rather than escaping as a TypeError.
     return [
-      for (final view in views.cast<Map<String, Object?>>())
-        ViewInfo(
-          id: view['id']! as String,
-          isolateId:
-              (view['isolate']! as Map<String, Object?>)['id']! as String,
-        ),
+      for (final view in views)
+        if (view case {
+          'id': final String id,
+          'isolate': {'id': final String isolateId},
+        })
+          ViewInfo(id: id, isolateId: isolateId),
     ];
   }
 

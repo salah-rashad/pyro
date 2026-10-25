@@ -137,7 +137,9 @@ Future<void> main(List<String> args) async {
         back++;
       }
     }
-    final sc008 = finished == 10;
+    // Every build finishes and Pyro's run recovers by itself each time;
+    // runs the benchmark restarted with `start()` don't count as recovered.
+    final sc008 = finished == 10 && back == 10;
     ok &= sc008;
     rows.add([
       'SC-008 user\'s `build` finishes (10 attempts)',

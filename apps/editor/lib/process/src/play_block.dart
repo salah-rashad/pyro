@@ -23,7 +23,8 @@ final class PlayBlock {
       return const PlayBlock(
         'No Flutter SDK was found for this project.',
         "Pyro looks for the project's .fvmrc, then FLUTTER_ROOT, then "
-            'flutter on PATH; set one up and reopen the project.',
+            'flutter on PATH; set one up (for an fvm project, run '
+            '`fvm install`) and reopen the project.',
       );
     }
     if (runtimeProblem != null) {
@@ -35,7 +36,8 @@ final class PlayBlock {
     if (!hasMacosFolder) {
       return const PlayBlock(
         'The project has no macos/ folder, so it cannot run on macOS.',
-        'Run `flutter create --platforms=macos .` in the project.',
+        'Run `flutter create --platforms=macos .` in the project, then '
+            'reopen it.',
       );
     }
     return null;

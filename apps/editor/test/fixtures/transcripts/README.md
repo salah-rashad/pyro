@@ -8,7 +8,7 @@ as `<auth-code>` before it writes a line. `build_runner` prints no address. Befo
 transcript, this must print nothing:
 
 ```bash
-grep -rE '[A-Za-z0-9_-]{6,}=/' test/fixtures/transcripts
+grep -rE '[A-Za-z0-9_-]{6,}=(/|$)' test/fixtures/transcripts
 ```
 
 | File | Recorded with | Flutter | Date | Read by |

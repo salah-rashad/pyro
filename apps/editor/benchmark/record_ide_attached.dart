@@ -73,7 +73,7 @@ Future<void> main(List<String> args) async {
       'macos',
       '--debug-uri',
       address,
-    ]);
+    ], workingDirectory: project);
     final attachLines = <String>[];
     final attached = Completer<void>();
     attach.stdout
@@ -98,7 +98,8 @@ Future<void> main(List<String> args) async {
     stdout.writeln('attached');
 
     Future<bool> reloaded() => events
-        .any((e) => e is PlayReloaded || e is PlayReloadFailed)
+        .firstWhere((e) => e is PlayReloaded || e is PlayReloadFailed)
+        .then((e) => e is PlayReloaded)
         .timeout(const Duration(seconds: 10), onTimeout: () => false);
 
     // A Scene save while attached.

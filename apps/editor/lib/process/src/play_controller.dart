@@ -129,6 +129,11 @@ final class PlayController {
       await _removeRunLink();
       _setPhase(PlayPhase.stopped);
       return;
+    } on Object catch (error) {
+      _pyro("Can't play $projectPath: $error", ConsoleSeverity.error);
+      await _removeRunLink();
+      _setPhase(PlayPhase.stopped);
+      return;
     }
     _session = session;
     final ended = Completer<void>();

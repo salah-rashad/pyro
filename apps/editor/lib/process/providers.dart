@@ -55,7 +55,11 @@ final playControllerProvider = Provider<PlayController?>((ref) {
       // A project that failed to open never reaches the editor window,
       // which shows its error instead.
       projectError: null,
-      hasSdk: project.sdk.source != SdkSource.none,
+      // An fvm project whose pinned SDK isn't installed has no folder to run
+      // from, and would fall back to whatever `flutter` is on PATH.
+      hasSdk:
+          project.sdk.source == SdkSource.path ||
+          (project.sdk.source != SdkSource.none && project.sdk.root != null),
       runtimeProblem: runtimeProblem(project.compatibility),
       hasMacosFolder: fs
           .directory(fs.path.join(project.root, 'macos'))
@@ -145,8 +149,15 @@ final generatorStateProvider = StreamProvider<GeneratorState>((ref) async* {
 final playPhaseProvider = StreamProvider<PlayPhase>((ref) {
   final controller = ref.watch(playControllerProvider);
   if (controller == null) return Stream.value(PlayPhase.stopped);
-  return controller.phases;
+  return _phasesFrom(controller);
 });
+
+/// Yields the controller's current phase, then every change, so a new
+/// controller replaces the previous project's phase at once.
+Stream<PlayPhase> _phasesFrom(PlayController controller) async* {
+  yield controller.phase;
+  yield* controller.phases;
+}
 
 /// The Runtime compatibility check's message when it blocks Play, in the
 /// status bar's words; null when the Runtime is compatible.
