@@ -210,42 +210,46 @@ void main() {
       );
     });
 
-    test('a nested workspace member reaches the root lock through the chain',
-        () {
-      fs
-          .file('/ws/pubspec.yaml')
-          .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
-      fs.file('/ws/nested/pubspec.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync(
-          'name: nested\nresolution: workspace\nworkspace:\n  - game\n',
+    test(
+      'a nested workspace member reaches the root lock through the chain',
+      () {
+        fs
+            .file('/ws/pubspec.yaml')
+            .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
+        fs.file('/ws/nested/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            'name: nested\nresolution: workspace\nworkspace:\n  - game\n',
+          );
+        fs.file('/ws/nested/game/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: game\nresolution: workspace\n');
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        expect(
+          BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
+          isA<BuildRunnerOk>(),
         );
-      fs.file('/ws/nested/game/pubspec.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('name: game\nresolution: workspace\n');
-      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
-      expect(
-        BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
-        isA<BuildRunnerOk>(),
-      );
-    });
+      },
+    );
 
-    test('a nested folder the workspace chain does not list does not either',
-        () {
-      fs
-          .file('/ws/pubspec.yaml')
-          .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
-      fs.file('/ws/nested/pubspec.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('name: nested\nresolution: workspace\n');
-      fs.file('/ws/nested/game/pubspec.yaml')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('name: game\nresolution: workspace\n');
-      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
-      expect(
-        BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
-        isA<BuildRunnerAbsent>(),
-      );
-    });
+    test(
+      'a nested folder the workspace chain does not list does not either',
+      () {
+        fs
+            .file('/ws/pubspec.yaml')
+            .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
+        fs.file('/ws/nested/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: nested\nresolution: workspace\n');
+        fs.file('/ws/nested/game/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: game\nresolution: workspace\n');
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        expect(
+          BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
+          isA<BuildRunnerAbsent>(),
+        );
+      },
+    );
   });
 }
