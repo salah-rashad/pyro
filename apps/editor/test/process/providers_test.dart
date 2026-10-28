@@ -1,4 +1,4 @@
-import 'dart:io' show ProcessSignal;
+import 'dart:io' show Directory, File, ProcessSignal;
 
 import 'package:file/memory.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,7 +8,9 @@ import 'package:pyro/process/process.dart';
 import 'package:pyro/process/providers.dart';
 import 'package:pyro/project/project.dart';
 
+import 'fake_game.dart';
 import 'fake_generator.dart';
+import 'fake_process.dart';
 
 ProjectState project(
   String root, {
@@ -136,6 +138,39 @@ void main() {
       );
     });
 
+    test('a link left by a Pyro that crashed is swept on open (R13)', () async {
+      container.dispose();
+      fs = MemoryFileSystem.test();
+      fs.directory('/a/macos').createSync(recursive: true);
+      fs.file('/a/lib/main.dart')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('void main() {}');
+      final stale = await RunLink.create(
+        '/a',
+        supportDir: '/support',
+        fileSystem: fs,
+      );
+      expect(fs.link(stale!.path).existsSync(), isTrue);
+      container = ProviderContainer(
+        overrides: [
+          playFileSystemProvider.overrideWithValue(fs),
+          runLinkSupportProvider.overrideWithValue('/support'),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(playControllerProvider, (_, _) {});
+      container
+          .read(projectProvider.notifier)
+          .open(project('/a', sdk: _sdk, compatibility: _compatible));
+      container.read(playControllerProvider);
+      await pumpEventQueue();
+      expect(fs.link(stale.path).existsSync(), isFalse);
+      expect(fs.file('/a/lib/main.dart').readAsStringSync(), 'void main() {}');
+      expect(fs.directory('/a/macos').existsSync(), isTrue);
+      // Nothing says "Running": a new Pyro knows no game.
+      expect(container.read(playControllerProvider)!.phase, PlayPhase.stopped);
+    });
+
     test('is recreated per project and disposed on close', () async {
       final notifier = container.read(projectProvider.notifier);
       notifier.open(project('/a', sdk: _sdk, compatibility: _compatible));
@@ -173,6 +208,7 @@ void main() {
         overrides: [
           playFileSystemProvider.overrideWithValue(fs),
           generatorProcessStarterProvider.overrideWithValue(spawns.call),
+          generatorDescendantsProvider.overrideWithValue((_) async => const []),
           buildLockProbeProvider.overrideWithValue(probe),
         ],
       );
@@ -306,6 +342,106 @@ void main() {
       container.read(projectProvider.notifier).close();
       await pumpEventQueue();
       expect(spawns.processes, isEmpty);
+    });
+  });
+
+  group('the Console has one way in (FR-025)', () {
+    const code = 'Zq8Lm2Xw9Pk4';
+    const address = 'http://127.0.0.1:5001/$code=/';
+
+    test(
+      'the controller, the generator and the game reach it redacted',
+      () async {
+        final fs = projectFileSystem(path: '/proj');
+        fs
+            .file('/proj/pubspec.lock')
+            .writeAsStringSync(
+              'packages:\n  build_runner:\n    version: "2.15.1"\n'
+              '  pyro_runtime:\n    version: "0.0.1"\n',
+            );
+        final game = LiveGame(fs);
+        final spawns = Spawns();
+        var starts = 0;
+        final container = ProviderContainer(
+          overrides: [
+            playFileSystemProvider.overrideWithValue(fs),
+            playStarterProvider.overrideWithValue((path, {runLink}) async {
+              // The first Play fails with a message carrying the address, the
+              // second one runs a game.
+              if (starts++ == 0) throw PlayStartException(path, 'at $address');
+              return game.start(path, runLink: runLink);
+            }),
+            generatorProcessStarterProvider.overrideWithValue(spawns.call),
+            generatorDescendantsProvider.overrideWithValue(
+              (_) async => const [],
+            ),
+            buildLockProbeProvider.overrideWithValue(
+              FakeProbe()..fallback = LockProbeResult.free,
+            ),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await pumpEventQueue();
+        });
+        container
+            .read(projectProvider.notifier)
+            .open(project('/proj', sdk: _sdk, compatibility: _compatible));
+        container.listen(generatorProvider, (_, _) {});
+        container.listen(playControllerProvider, (_, _) {});
+        await pumpEventQueue();
+
+        final controller = container.read(playControllerProvider)!;
+        await controller.play();
+        await controller.play();
+        await pumpEventQueue();
+        game.started(code);
+        game.process.emitLine('flutter: the engine is at $address');
+        spawns.last.emitLine('watching, VM service at $address');
+        await pumpEventQueue();
+
+        final console = container.read(consoleBufferProvider);
+        for (final source in ConsoleSource.values) {
+          final lines = console.lines.where((line) => line.source == source);
+          expect(
+            lines.where((line) => line.text.contains('<auth-code>')),
+            isNotEmpty,
+            reason: '$source wrote a line with an address, and it is masked',
+          );
+        }
+        for (final line in console.lines) {
+          expect(line.text, isNot(contains(code)));
+        }
+
+        await controller.stop();
+      },
+    );
+
+    test('lines cannot be added around add()', () {
+      final buffer = ConsoleBuffer()..add('one', source: ConsoleSource.pyro);
+      final line = buffer.lines.single;
+      expect(() => buffer.lines.add(line), throwsUnsupportedError);
+      expect(() => buffer.lines[0] = line, throwsUnsupportedError);
+      expect(() => buffer.lines.clear(), throwsUnsupportedError);
+      expect(
+        () => buffer.filtered({ConsoleSource.pyro}).add(line),
+        throwsUnsupportedError,
+      );
+    });
+
+    test('nothing but the buffer makes a ConsoleLine', () {
+      // The constructor is public for the tests; in the library only the
+      // buffer calls it, after the redaction.
+      final offenders = [
+        for (final entity in Directory('lib').listSync(recursive: true))
+          if (entity is File &&
+              entity.path.endsWith('.dart') &&
+              !entity.path.endsWith('console_buffer.dart') &&
+              !entity.path.endsWith('console_line.dart') &&
+              RegExp(r'\bConsoleLine\(').hasMatch(entity.readAsStringSync()))
+            entity.path,
+      ];
+      expect(offenders, isEmpty);
     });
   });
 }

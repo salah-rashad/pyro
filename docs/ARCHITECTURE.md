@@ -860,3 +860,138 @@ run doesn't show that other Nodes are left alone; `disk_assets_test.dart` does.
    focused when started from the keyboard or the menu (autofocus gives way to the focus already
    in the scope), a click inside it ended the rename, and that click left a press on a disposed
    row (*WidgetStatesController was used after being disposed*).
+
+---
+
+## Play
+
+What spec 007 built (`apps/editor/lib/process/`, the panels and the toolbar) and what was
+verified. Decisions: *Q125–Q138* in [`decisions.md`](decisions.md). Run on 2026-10-25: macOS 26.2,
+Apple M4, **Flutter 3.47.7**, `-d macos --debug`, headless (no one watching the window).
+
+### Shape
+
+```mermaid
+flowchart LR
+  Project[Open project] --> GS[GeneratorSupervisor]
+  Project --> PC[PlayController]
+  GS -- GeneratorState --> CW[CodeWatcher]
+  PC -- owns --> PS[PlaySession]
+  PS -- spawns --> FR["flutter run --machine"]
+  PS --> HM[HotSwapMonitor]
+  PS --> VL[VmServiceLink]
+  PC --> CW
+  PC --> IU[ImageUse]
+  GS -- lines --> CB[ConsoleBuffer]
+  PC -- lines --> CB
+  CB --> CP[ConsolePanel]
+  PC -- phase, notices --> UI[Toolbar and notices]
+```
+
+- **One controller per project** (`PlayController`): at most one `PlaySession`, a phase for the
+  toolbar (stopped, starting, running, stopping), Console lines for the lifecycle, and notices
+  (`GameStopped`, `HotSwapFailed`, `ImageChanged`). Quit and project close go through
+  `confirmStopGame`.
+- **The session writes nothing in the project** (FR-030, tested on a memory file system): the one
+  new path is the run link under Pyro's support folder. The debugger address lives in a private
+  field and leaves only through `copyDebuggerAddress()`.
+- **`process.dart` imports no Flutter**, so `bin/play.dart` still runs with `dart run`. `ImageUse`
+  reads Scenes with the Runtime, which does import Flutter, so the Riverpod layer builds it and
+  the controller sees only the `ImageWatching` interface.
+- **The auth code is masked twice**: in the session as lines arrive, and again when a line enters
+  the Console buffer. Disabling only one still passes the run-level test, so the test removes
+  both to prove it can fail.
+
+### Numbers
+
+| Check | Result |
+|---|---|
+| SC-002 save to Scene reloaded, with the run link and re-point | median **294 ms**, worst **377 ms** over ten saves (limit: median < 500 ms, worst < 1 s); 258 / 332 ms before Phase 8 |
+| SC-002 with `flutter attach` as the stand-in IDE | median **264 ms**, worst **339 ms**; 268 / 334 ms before Phase 8 |
+| SC-003 rebuilds | 0 for no-op reloads and code-only reloads; a burst of ten saves is 1 reload |
+| SC-004 save to the Manifest on disk (`benchmark/generator_takeover.dart`) | median 1054 ms, worst 2990 ms (limit 5 s) |
+| SC-008 the user's own `build_runner` while Pyro's runs | 10 of 10 builds finished; Pyro's run came back by itself 10 times; after `build_runner stop` it stayed stopped |
+| Frame check (T063, SC-006): Pyro in profile mode, a game printing 5,000 lines in a second three times (some lines long enough to wrap), Console following the tail, final Console design, flood window only, twice | 128 and 125 frames: build max 5.9 and 6.6 ms, raster max 3.2 ms; **0 frames over 16 ms**. With rows selectable live: 15–17 over (max 26 ms). The fixed-height Console before wrapping: 68 frames, 0 over |
+| SC-004 in the window: a new annotated Behavior in the inspector's Behaviors list | in the Manifest 3.5 s after the save, listed a moment later; removed again when the file was deleted |
+| Console flood (`benchmark/console_throughput.dart`) | 5,000 lines a second for 10 s: 8.1–8.9 µs a line with redaction, 16.5 notifications a second (limit 20), 10,000 of 10,000 lines kept, no auth code kept |
+| Release build free of Hot-swap code (FR-027) | ✅ **0** matches for `[pyro] Scene` and **0** for `couldn't Hot-swap` in the release `App.framework/App`; the debug kernel has **7** and **2**, and `Scene loaded` is in the release binary (2), so the search works |
+
+Spec 005's baseline without the run link (T025) was not re-run: since T053 the benchmark always
+creates the link, so there is no baseline mode left to measure. The two rows above replace it.
+
+### Private interfaces, re-checked
+
+| Interface | State on Flutter 3.47.7 |
+|---|---|
+| `flutter run --project-root <link>` | ✅ used by every run in the benchmark; the DevFS name differs from the project's |
+| `_flutter.listViews`, `_flutter.setAssetBundlePath` | ✅ on the real game with and without an attached client. **It takes a file path, not a URI**; the first version passed a URI and was rejected (fixed; `play_session_test.dart` expects the file path) |
+| `ext.flutter.evict` | covered by the fake-VM sequence tests only; the recorded runs took the first branch, so the fallback that evicts was not seen on a real engine in this phase |
+
+These are the single place to look when a Flutter release breaks Hot-swap with an IDE attached.
+
+### Not verified yet (by hand, on the reference Mac)
+
+- SC-007's 1 s limit for Play being available after an exit: the tool round trip is longer, so it
+  was only seen to be available at the first look (the controller tests cover the timing).
+- **The dry run (T057–T059, SC-001, SC-009)** is the last task of the early preview; its report
+  will be `specs/007-play/dry-run-report.md`. Until it passes, SC-001 is not claimed.
+
+### Findings
+
+1. **`_flutter.setAssetBundlePath` wants a file path**, not the `file://` URI `app.debugPort`
+   reports as the DevFS base.
+2. **After `flutter attach`'s hot restart the game's output stops reaching Pyro** (no `Scene reloaded`, no
+   `Scene loaded`), though Pyro's own saves still return code 0. Whether the swap still lands was
+   not established. The session now notices the view's isolate changed outside Pyro, disarms the
+   Hot-swap monitor and says so in the Console once; three saves after an `R` from `flutter
+   attach` gave no false failure. **With real VS Code (Dart-Code), by hand, output kept reaching
+   Pyro after a hot restart and saves still landed**, so this looks specific to the stand-in.
+3. **`flutter create --platforms=macos .` already writes** `com.apple.security.network.server` in
+   `DebugProfile.entitlements`; the README says to check it only for older or edited projects.
+4. **Without the `pyro_annotations` `dependency_overrides` entry a git-dependency project does not
+   resolve**, because `pyro_generator` asks for it from pub.dev. The README recipe was applied to
+   a copy of `example/` and builds for macOS, in debug and release.
+5. **A code save and a Scene save close together share a reload only through the session's rule**
+   (one in flight, one queued): the code watcher knows nothing of Scene saves, so the worst case is
+   two reloads, not one.
+6. **`ProjectNotifier.close` has no caller yet**, since no *Close project* command exists;
+   `closeProject` guards it for when one does.
+7. **The window checks (T075, T038) found three bugs**, fixed with tests: `example/` is a pub-workspace
+   member, so its lock is the root's and the generator read "not set up" (`findPubspecLock`); the
+   "Image changed" toast stayed after the game closed; quitting Pyro never stopped its own
+   `build_runner`.
+8. **Under puro `dart` is a wrapper that does not `exec`**, so SIGTERM to it left `build_runner` running;
+   the supervisor now signals everything below it (`processDescendants`). Checked on a real
+   `build_runner`: nothing left after `dispose`, and nothing left after quitting a profile build.
+9. **There is no visible way to open an existing Scene**: only ⌘O, with no menu entry or button.
+   The README does not mention it. Left for the author to decide.
+10. **The Console shows red `Did you run this command from the same directory as your pubspec.yaml
+    file?` / `Error:` lines at every Play of `example/`**, and the game still starts. The cause is
+    not found; it is probably the `--project-root` link outside the workspace, so it may not show for
+    a standalone project.
+11. **Real VS Code attach works** (by hand, 2026-10-25): the copied address attaches, a breakpoint hits,
+    Hot-swap lands with the IDE attached and after its hot restart, and a new run has a new address.
+    Attaching with a stale address waits for ever with no error (VS Code's behavior, so the guide's
+    "Stop and Play give a new address" is the thing to say).
+12. **The Console cut every line to one row and its text couldn't be selected or copied** (found by hand
+    with VS Code, 2026-10-25). Fixed: rows wrap to their own height with the source in a column of its
+    own; *Copy all* puts every line shown, with its source, on the clipboard; and *Pause to select text*
+    freezes the view into a selectable snapshot of the newest 1,000 lines (*Resume* goes back). Lines are
+    redacted on entry, so nothing copied can carry an address. **Why not select live rows:** letting the
+    selection machinery see every streamed row cost 15–17 frames over 16 ms in the flood (profile mode,
+    measured hands-off, three variants) where plain wrapped rows cost none, and switching selection on
+    and off around a live list either crashed (re-parenting) or, with a remount, stalled ~600 ms (a
+    variable-height list has to build every row between its start and a far offset). So live rows are
+    plain and the snapshot is the selectable view.
+13. **A syntax error hot reloaded and then undone froze the game** (reported by the author, reproduced
+    with Pyro alone). With the generator in error, Pyro's code reload went to the game as compile-error
+    stubs; `Spin.update` threw, the Flame loop's ticker died (the HUD clock stopped, not only the ship)
+    and the undo's reload could not revive it. The code watcher now holds reloads while the generator
+    reports an error, says why in the Console, and reloads once when it recovers (research R10). Checked
+    live: the game kept spinning with the error in place, and after the undo.
+14. **The red close button left Pyro running with no window** (author, by hand): closing the last window
+    made macOS ask Dart to confirm the exit, and the "Stop it and quit?" dialog had nowhere to appear,
+    so Pyro, its `build_runner` and the `flutter run` host stayed alive. `MainFlutterWindow` is now its
+    own delegate: the red button calls `NSApp.terminate`, the same path as ⌘Q, and keeps the window up
+    until the app really exits. Checked by hand: with a game running the button asks, Cancel keeps
+    Pyro and the game, and "Stop and quit" leaves no Pyro, game or `flutter run` process.

@@ -142,7 +142,7 @@ Running the developer's game from Pyro on a chosen device; Pyro owns that runnin
 _Avoid_: Run game, launch
 
 **Play session**:
-One run of the developer's game through Pyro's Play client, from starting `flutter run` to the game's exit; it reports the game's output and Hot-swaps its saved Scenes.
+One run of the developer's game through Pyro's Play client, from starting `flutter run` to the game's exit; it reports the game's output, Hot-swaps its saved Scenes, reloads its code when Dart files are saved, and says when an image it uses changed.
 _Avoid_: run, launch
 
 **Console**:
@@ -165,7 +165,7 @@ _Avoid_: user generator, foreign build
 The CI check that `example/`'s generated Registry and Manifest are committed and reviewed, and that every `example/` Scene loads with the real Registry, with no error and no warning.
 
 **Attach**:
-Connecting the developer's IDE debugger to a game Pyro is already running.
+Connecting the developer's IDE debugger to a game Pyro is already running, with the game's debugger address that Pyro copies when the developer presses Attach.
 
 **Hot-swap**:
 Replacing a Scene inside a running game with its newly saved version, without restarting the game. It happens only when the Scene's content changed.

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pyro/document/document.dart';
+import 'package:pyro/process/process.dart';
+import 'package:pyro/process/providers.dart';
 import 'package:pyro/project/project.dart';
 import 'package:pyro_runtime/pyro_runtime.dart';
 import 'package:pyro_ui/pyro_ui.dart';
@@ -72,6 +75,56 @@ Future<SaveAndPlayAnswer> showSaveAndPlayDialog(
     closeTooltip: 'Cancel',
   ),
 ).then((answer) => answer ?? SaveAndPlayAnswer.cancel);
+
+/// What a running game is being stopped for.
+enum StopGameFor {
+  /// Pyro is quitting.
+  quit('quit', 'Stop and quit'),
+
+  /// The project is closing.
+  closeProject('close the project', 'Stop and close');
+
+  const StopGameFor(this.verb, this.button);
+
+  /// "Stop it and [verb]?"
+  final String verb;
+
+  /// The primary button's label.
+  final String button;
+}
+
+/// Asks whether to stop the running game for [reason]; the close × and Esc
+/// answer no.
+Future<bool> showStopGameDialog(BuildContext context, StopGameFor reason) =>
+    showFsDialog<bool>(
+      context,
+      dialog: PrDialog(
+        title: 'A game is running. Stop it and ${reason.verb}?',
+        body: 'The game window closes with it.',
+        primary: PrDialogAction(label: reason.button, value: true),
+        secondary: const PrDialogAction(label: 'Cancel', value: false),
+        closeTooltip: 'Cancel',
+      ),
+    ).then((answer) => answer ?? false);
+
+/// Quitting Pyro or closing the project with a game running (spec 007,
+/// FR-015, research R13): asks, and on yes stops the game and completes once
+/// it has exited. True when it is clear to go on (no game, or stopped);
+/// false when the user said no. A stop already under way is only waited for.
+Future<bool> confirmStopGame(
+  BuildContext context,
+  ProviderContainer container, {
+  StopGameFor reason = StopGameFor.quit,
+}) async {
+  final controller = container.read(playControllerProvider);
+  if (controller == null || controller.phase == PlayPhase.stopped) return true;
+  if (controller.phase != PlayPhase.stopping) {
+    if (!context.mounted) return false;
+    if (!await showStopGameDialog(context, reason)) return false;
+  }
+  await controller.stop();
+  return true;
+}
 
 /// The new-scene dialog's result (FR-008).
 class NewSceneResult {

@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 
-class MainFlutterWindow: NSWindow {
+class MainFlutterWindow: NSWindow, NSWindowDelegate {
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -18,7 +18,17 @@ class MainFlutterWindow: NSWindow {
     self.titlebarAppearsTransparent = true
     self.styleMask.insert(.fullSizeContentView)
     self.isMovableByWindowBackground = true
+    self.delegate = self
 
     super.awakeFromNib()
+  }
+
+  /// The red close button quits the app through the same path as ⌘Q, with the
+  /// window still up: the editor asks "A game is running. Stop it and quit?"
+  /// (spec 007, FR-015) in this window, which it cannot do once the window is
+  /// gone, so the window stays until the app actually exits.
+  func windowShouldClose(_ sender: NSWindow) -> Bool {
+    NSApp.terminate(sender)
+    return false
   }
 }

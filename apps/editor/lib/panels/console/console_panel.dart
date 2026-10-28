@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pyro_ui/pyro_ui.dart';
 
@@ -11,14 +12,27 @@ import '../../process/providers.dart';
 /// game and Pyro lines in one virtualized list, filterable by source,
 /// following the newest line until the user scrolls up.
 ///
+/// A long line wraps, and the text can be selected and copied; *Copy all*
+/// copies every line shown, labelled. Lines are redacted when they enter the
+/// buffer, so nothing copied can carry a debugger address (FR-025).
+///
 /// It rebuilds only on the buffer's throttled changes, so a flood of
-/// output costs one build per 50 ms at most (SC-006).
+/// output costs one build per 50 ms at most (SC-006). Only the rows in view
+/// are built, however tall they are.
+///
+/// Live rows are plain text: letting the selection machinery see every
+/// streamed row cost 15 frames over 16 ms in a flood (profile mode, SC-006).
+/// *Pause to select text* instead freezes the view into a snapshot of the
+/// latest [snapshotLines] lines whose text can be selected; *Resume* goes
+/// back to the live view. The snapshot is built lazily like the live list, so
+/// Select all reaches only the rows built so far; *Copy all* copies the whole
+/// snapshot while paused.
 class ConsolePanel extends ConsumerStatefulWidget {
   /// Creates the panel.
   const ConsolePanel({super.key});
 
-  /// Every row's height: one line of `PrText.monoConsole`.
-  static const double rowExtent = 18;
+  /// How many of the newest lines the selectable snapshot holds.
+  static const snapshotLines = 1000;
 
   @override
   ConsumerState<ConsolePanel> createState() => _ConsolePanelState();
@@ -32,7 +46,7 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   StreamSubscription<void>? _changes;
   ConsoleBuffer? _buffer;
   var _following = true;
-  var _rows = 0;
+  List<ConsoleLine>? _snapshot;
 
   @override
   void dispose() {
@@ -44,6 +58,8 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   void _listenTo(ConsoleBuffer buffer) {
     if (identical(buffer, _buffer)) return;
     unawaited(_changes?.cancel());
+    // A snapshot belongs to the buffer it was taken from.
+    if (_buffer != null) _snapshot = null;
     _buffer = buffer;
     _changes = buffer.changes.listen((_) {
       if (!mounted) return;
@@ -52,16 +68,18 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     });
   }
 
-  void _jumpToTailAfterLayout() {
+  /// Scrolls to the newest line once the list has laid out. Rows wrap to
+  /// different heights, so the list only estimates its end until the last
+  /// rows are laid out: jump, and again on the next frame until the end stops
+  /// moving (a few frames at most).
+  void _jumpToTailAfterLayout([int attempts = 4]) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
+      if (!mounted || !_scroll.hasClients || !_following) return;
       final position = _scroll.position;
-      // Computed, not `maxScrollExtent`: a list scrolled away from its end
-      // keeps its old extent until it lays out the end again.
-      final end = _rows * ConsolePanel.rowExtent - position.viewportDimension;
-      _scroll.jumpTo(
-        end > position.maxScrollExtent ? end : position.maxScrollExtent,
-      );
+      final end = position.maxScrollExtent;
+      final moved = position.pixels < end - 1;
+      if (moved) _scroll.jumpTo(end);
+      if (moved && attempts > 1) _jumpToTailAfterLayout(attempts - 1);
     });
     WidgetsBinding.instance.ensureVisualUpdate();
   }
@@ -82,6 +100,65 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     return false;
   }
 
+  /// Freezes the view into a selectable snapshot, or goes back to live.
+  void _togglePause(List<ConsoleLine> lines) {
+    if (_snapshot != null) {
+      setState(() => _snapshot = null);
+      _follow();
+      return;
+    }
+    setState(() => _snapshot = _snapshotOf(lines));
+  }
+
+  /// The newest [ConsolePanel.snapshotLines] of [lines], copied.
+  static List<ConsoleLine> _snapshotOf(List<ConsoleLine> lines) {
+    final from = lines.length > ConsolePanel.snapshotLines
+        ? lines.length - ConsolePanel.snapshotLines
+        : 0;
+    return List.of(lines.sublist(from));
+  }
+
+  /// Empties the buffer, and the snapshot with it: otherwise the next new
+  /// line would bring the cleared lines back into the paused view.
+  void _clear(ConsoleBuffer buffer) {
+    if (_snapshot != null) setState(() => _snapshot = null);
+    buffer.clear();
+  }
+
+  /// The snapshot: newest line at the bottom, as in the live view. A
+  /// reversed list starts there, so it never has to jump to the end.
+  Widget _frozen(List<ConsoleLine> lines) => SelectionArea(
+    child: ListView.builder(
+      reverse: true,
+      padding: const EdgeInsets.symmetric(horizontal: PrSpacing.s2),
+      itemCount: lines.length,
+      itemBuilder: (context, index) =>
+          _ConsoleRow(line: lines[lines.length - 1 - index]),
+    ),
+  );
+
+  Widget _list(List<ConsoleLine> lines) => ListView.builder(
+    controller: _scroll,
+    padding: const EdgeInsets.symmetric(horizontal: PrSpacing.s2),
+    itemCount: lines.length,
+    itemBuilder: (context, index) => _rowOf(lines[index]),
+  );
+
+  /// A line never changes, so its row is built once and handed back: the
+  /// framework skips a row that is the very same widget, and the text of a
+  /// line already shown is not laid out again when the list rebuilds.
+  static final _rows = Expando<Widget>('Console rows');
+  static Widget _rowOf(ConsoleLine line) =>
+      _rows[line] ??= _ConsoleRow(line: line);
+
+  /// Puts every line shown on the clipboard, each with its source.
+  void _copyAll(List<ConsoleLine> lines) {
+    final text = lines
+        .map((line) => '${_label(line.source).trimRight()}  ${line.text}')
+        .join('\n');
+    unawaited(Clipboard.setData(ClipboardData(text: text)));
+  }
+
   void _follow() {
     setState(() => _following = true);
     _jumpToTailAfterLayout();
@@ -93,25 +170,36 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     _listenTo(buffer);
     final sources = ref.watch(consoleSourceFilterProvider);
     final lines = buffer.filtered(sources);
-    _rows = lines.length;
+    // While paused, what the panel shows and copies is the frozen snapshot,
+    // not the live buffer.
+    final shown = _snapshot ?? lines;
     final c = PrColors.of(context);
     final only = sources.length == 1 ? sources.single : null;
     return PrPanel(
       title: 'Console',
       icon: PrIcons.terminal,
       actions: [
-        if (!_following)
-          PrIconButton(
-            icon: PrIcons.chevronDown,
-            tooltip: 'Follow the newest line',
-            size: PrIconButtonSize.small,
-            onPressed: _follow,
-          ),
+        PrIconButton(
+          icon: _snapshot == null ? PrIcons.pause : PrIcons.play,
+          tooltip: _snapshot == null ? 'Pause to select text' : 'Resume',
+          size: PrIconButtonSize.small,
+          onPressed: _snapshot == null && lines.isEmpty
+              ? null
+              : () => _togglePause(lines),
+          disabledReason: 'The Console is empty',
+        ),
+        PrIconButton(
+          icon: PrIcons.copy,
+          tooltip: 'Copy all',
+          size: PrIconButtonSize.small,
+          onPressed: shown.isEmpty ? null : () => _copyAll(shown),
+          disabledReason: 'The Console is empty',
+        ),
         PrIconButton(
           icon: PrIcons.trash,
           tooltip: 'Clear',
           size: PrIconButtonSize.small,
-          onPressed: buffer.lines.isEmpty ? null : buffer.clear,
+          onPressed: buffer.lines.isEmpty ? null : () => _clear(buffer),
           disabledReason: 'The Console is empty',
         ),
       ],
@@ -149,12 +237,22 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                           source == null
                               ? filter.showAll()
                               : filter.showOnly(source);
+                          // A paused view follows the filter too.
+                          if (_snapshot != null) {
+                            setState(
+                              () => _snapshot = _snapshotOf(
+                                buffer.filtered(
+                                  ref.read(consoleSourceFilterProvider),
+                                ),
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),
                   ),
                   Expanded(
-                    child: lines.isEmpty
+                    child: shown.isEmpty
                         ? Center(
                             child: Text(
                               buffer.lines.isEmpty
@@ -167,16 +265,24 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                           )
                         : NotificationListener<ScrollNotification>(
                             onNotification: _onScroll,
-                            child: ListView.builder(
-                              controller: _scroll,
-                              itemExtent: ConsolePanel.rowExtent,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: PrSpacing.s2,
-                              ),
-                              itemCount: lines.length,
-                              itemBuilder: (context, index) =>
-                                  _ConsoleRow(line: lines[index]),
-                            ),
+                            child: _snapshot == null
+                                ? Stack(
+                                    children: [
+                                      Positioned.fill(child: _list(lines)),
+                                      if (!_following)
+                                        Positioned(
+                                          right: PrSpacing.s3,
+                                          bottom: PrSpacing.s2,
+                                          child: PrIconButton(
+                                            icon: PrIcons.chevronDown,
+                                            tooltip: 'Follow the newest line',
+                                            size: PrIconButtonSize.small,
+                                            onPressed: _follow,
+                                          ),
+                                        ),
+                                    ],
+                                  )
+                                : _frozen(_snapshot!),
                           ),
                   ),
                 ],
@@ -186,7 +292,9 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   }
 }
 
-/// One Console line: its source, then its text in the severity's colour.
+/// One Console line: its source in a column of its own, then its text in
+/// the severity's colour, wrapping under itself. The label is left out of a
+/// selection, so a copy holds the text alone.
 class _ConsoleRow extends StatelessWidget {
   const _ConsoleRow({required this.line});
 
@@ -200,26 +308,30 @@ class _ConsoleRow extends StatelessWidget {
       ConsoleSeverity.warning => c.warning,
       ConsoleSeverity.info => c.textPrimary,
     };
-    return Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '${_label(line.source)}  ',
-            style: TextStyle(color: c.textSecondary),
-          ),
-          TextSpan(text: line.text),
-        ],
-      ),
-      maxLines: 1,
-      softWrap: false,
-      overflow: TextOverflow.ellipsis,
+    final text = Text(
+      line.text,
       style: PrText.monoConsole.copyWith(color: color),
     );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectionContainer.disabled(
+          child: Text(
+            '${_label(line.source)}  ',
+            maxLines: 1,
+            softWrap: false,
+            style: PrText.monoConsole.copyWith(color: c.textSecondary),
+          ),
+        ),
+        Expanded(child: text),
+      ],
+    );
   }
-
-  static String _label(ConsoleSource source) => switch (source) {
-    ConsoleSource.generator => 'generator',
-    ConsoleSource.game => 'game     ',
-    ConsoleSource.pyro => 'pyro     ',
-  };
 }
+
+/// The source's name, padded to one width so the texts line up.
+String _label(ConsoleSource source) => switch (source) {
+  ConsoleSource.generator => 'generator',
+  ConsoleSource.game => 'game     ',
+  ConsoleSource.pyro => 'pyro     ',
+};

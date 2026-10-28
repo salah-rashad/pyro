@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show FileSystemEvent, FileSystemModifyEvent;
 
 import 'package:file/memory.dart';
@@ -32,6 +33,7 @@ void main() {
   late ProviderContainer container;
   late LiveGame game;
   late StreamController<FileSystemEvent> changes;
+  late StreamController<FileSystemEvent> files;
 
   /// Opens the project over a fake game. Inside the test body, not
   /// `setUp`: the fake process's streams must live in the test's fake-async
@@ -39,10 +41,12 @@ void main() {
   void arrange() {
     fs = projectFileSystem();
     changes = StreamController<FileSystemEvent>.broadcast();
+    files = StreamController<FileSystemEvent>.broadcast();
     game = LiveGame(fs, changes: () => changes.stream);
     container = ProviderContainer(
       overrides: [
         playFileSystemProvider.overrideWithValue(fs),
+        playDirectoryWatcherProvider.overrideWithValue((_) => files.stream),
         playStarterProvider.overrideWithValue(game.start),
       ],
     );
@@ -59,6 +63,7 @@ void main() {
 
   tearDown(() {
     unawaited(changes.close());
+    unawaited(files.close());
     container.dispose();
   });
 
@@ -168,6 +173,7 @@ void main() {
     game = LiveGame(fs, changes: () => changes.stream);
     container.updateOverrides([
       playFileSystemProvider.overrideWithValue(fs),
+      playDirectoryWatcherProvider.overrideWithValue((_) => files.stream),
       playStarterProvider.overrideWithValue(game.start),
     ]);
     await tester.pump();
@@ -179,5 +185,165 @@ void main() {
     expect(find.text('The game exited with code 1.'), findsNothing);
     await tester.pump(const Duration(seconds: 6));
     await tester.pump(PlayDefaults.consoleNotify);
+  });
+
+  group('a changed image the game uses (FR-013)', () {
+    const ship = 'assets/images/ship.png';
+
+    /// A project whose Scene names [ship], and a running game.
+    Future<PlayController> arrangeWithImages(WidgetTester tester) async {
+      arrange();
+      fs
+          .file('$projectPath/pubspec.yaml')
+          .writeAsStringSync(
+            'name: game\nflutter:\n  assets:\n    - assets/images/\n'
+            '    - assets/scenes/\n',
+          );
+      fs.file('$projectPath/assets/images/ship.png')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('png');
+      fs.file('$projectPath/assets/images/unused.png').writeAsStringSync('png');
+      fs
+          .file('$projectPath/assets/scenes/level1.scene.json')
+          .writeAsStringSync(
+            jsonEncode({
+              'schemaVersion': 1,
+              'rootId': 'root',
+              'nodes': {
+                'root': {
+                  'kind': 'root',
+                  'childIds': ['hull'],
+                },
+                'hull': {
+                  'kind': 'sprite',
+                  'name': 'hull',
+                  'props': {'image': ship},
+                  'transform': {
+                    'anchor': 'center',
+                    'angle': 0,
+                    'position': [0, 0],
+                    'scale': [1, 1],
+                    'size': [64, 64],
+                  },
+                },
+              },
+            }),
+          );
+      await pump(tester);
+      final controller = await run(tester);
+      await tester.pump();
+      return controller;
+    }
+
+    void change(String relative) =>
+        files.add(FileSystemModifyEvent('$projectPath/$relative', false, true));
+
+    testWidgets('offers Restart game, which restarts and clears the toast', (
+      tester,
+    ) async {
+      final controller = await arrangeWithImages(tester);
+      change(ship);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Image changed'), findsOneWidget);
+      expect(find.textContaining(ship), findsOneWidget);
+      expect(find.text('Restart game'), findsOneWidget);
+      // Nothing restarted by itself.
+      expect(
+        game.process.requests.where((r) => r['method'] == 'app.restart'),
+        isEmpty,
+      );
+
+      await tester.tap(find.text('Restart game'));
+      await tester.pump(const Duration(seconds: 1));
+      final restart = game.process.requests.last;
+      expect(restart['method'], 'app.restart');
+      expect(restart['params'], containsPair('fullRestart', true));
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Image changed'), findsNothing);
+
+      unawaited(controller.stop());
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
+
+    testWidgets('left alone, the game is left as it is', (tester) async {
+      final controller = await arrangeWithImages(tester);
+      change(ship);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(seconds: 30));
+      expect(controller.phase, PlayPhase.running);
+      expect(
+        game.process.requests.where((r) => r['method'] == 'app.restart'),
+        isEmpty,
+      );
+      unawaited(controller.stop());
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
+
+    testWidgets('an image no Scene names shows nothing', (tester) async {
+      final controller = await arrangeWithImages(tester);
+      change('assets/images/unused.png');
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('Image changed'), findsNothing);
+      unawaited(controller.stop());
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
+
+    testWidgets('the offer leaves with the game', (tester) async {
+      final controller = await arrangeWithImages(tester);
+      change(ship);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Restart game'), findsOneWidget);
+      game.process.exit(0);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Game stopped'), findsOneWidget);
+      expect(find.text('Image changed'), findsNothing);
+      expect(find.text('Restart game'), findsNothing);
+      expect(controller.phase, PlayPhase.stopped);
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
+
+    testWidgets('a second change replaces the toast', (tester) async {
+      final controller = await arrangeWithImages(tester);
+      fs.file('$projectPath/assets/images/glow.png').writeAsStringSync('png');
+      change(ship);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('Image changed'), findsOneWidget);
+      // The Scene now names a second image.
+      final scene = fs.file('$projectPath/assets/scenes/level1.scene.json');
+      final json = jsonDecode(scene.readAsStringSync()) as Map<String, Object?>;
+      final nodes = json['nodes']! as Map<String, Object?>;
+      (nodes['root']! as Map<String, Object?>)['childIds'] = ['hull', 'glow'];
+      nodes['glow'] = {
+        ...(nodes['hull']! as Map<String, Object?>),
+        'name': 'glow',
+        'props': {'image': 'assets/images/glow.png'},
+      };
+      scene.writeAsStringSync(jsonEncode(json));
+      files.add(FileSystemModifyEvent(scene.path, false, true));
+      await tester.pump(const Duration(milliseconds: 200));
+      change('assets/images/glow.png');
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Image changed'), findsOneWidget);
+      expect(
+        find.text(
+          '2 images changed. '
+          'The game shows the old ones until it restarts.',
+        ),
+        findsOneWidget,
+      );
+      unawaited(controller.stop());
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(PlayDefaults.consoleNotify);
+    });
   });
 }

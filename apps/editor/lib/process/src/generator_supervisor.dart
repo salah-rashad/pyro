@@ -33,6 +33,8 @@ final class GeneratorSupervisor {
     this.stopTimeout = PlayDefaults.stopTimeout,
     this.takeoverWindow = PlayDefaults.takeoverWindow,
     this.takeoverPoll = PlayDefaults.takeoverPoll,
+    this._descendants,
+    this._killPid = Process.killPid,
   });
 
   /// The project whose generator this is.
@@ -57,6 +59,12 @@ final class GeneratorSupervisor {
   final Duration takeoverPoll;
 
   final ProcessStarter _startProcess;
+
+  /// Lists the processes below a pid, so a stop reaches `build_runner` when
+  /// [dart] is a wrapper that does not `exec` it; null signals only the
+  /// process itself.
+  final Future<List<int>> Function(int pid)? _descendants;
+  final bool Function(int pid, ProcessSignal signal) _killPid;
   final BuildLockProbe _probe;
   final _states = StreamController<GeneratorState>.broadcast();
   final _lines = StreamController<String>.broadcast();
@@ -292,9 +300,34 @@ final class GeneratorSupervisor {
   }
 
   void _stop(Process process) {
-    process.kill();
     _kill?.cancel();
-    _kill = Timer(stopTimeout, () => process.kill(ProcessSignal.sigkill));
+    final listing = _descendants?.call(process.pid);
+    if (listing == null) {
+      process.kill();
+      _kill = Timer(stopTimeout, () => process.kill(ProcessSignal.sigkill));
+      return;
+    }
+    unawaited(_stopTree(process, listing));
+  }
+
+  /// SIGTERM to everything below [process] and then to it, SIGKILL to the
+  /// same after [stopTimeout] unless it has exited. The children are listed
+  /// before the parent is signalled: once it dies they are no longer its
+  /// children.
+  Future<void> _stopTree(Process process, Future<List<int>> listing) async {
+    final children = await listing;
+    for (final pid in children) {
+      _killPid(pid, ProcessSignal.sigterm);
+    }
+    process.kill();
+    final timer = Timer(stopTimeout, () {
+      for (final pid in children) {
+        _killPid(pid, ProcessSignal.sigkill);
+      }
+      process.kill(ProcessSignal.sigkill);
+    });
+    _kill = timer;
+    unawaited(process.exitCode.then((_) => timer.cancel()));
   }
 
   void _set(GeneratorState state) {

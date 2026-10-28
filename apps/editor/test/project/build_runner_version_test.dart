@@ -97,4 +97,159 @@ void main() {
     writeLock(_lock('2.14.0-dev.1'));
     expect(read(), isA<BuildRunnerOk>());
   });
+
+  group('in a pub workspace the lock is the workspace root\'s', () {
+    setUp(() {
+      fs.file('/ws/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: ws\nworkspace:\n  - game\n');
+      fs.file('/ws/game/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: game\nresolution: workspace\n');
+    });
+
+    BuildRunnerVersion readGame() =>
+        BuildRunnerVersion.of('/ws/game', fileSystem: fs);
+
+    test('a member without a lock of its own uses the root\'s', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('the root\'s lock is too old when it is', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.13.9'));
+      expect(readGame(), isA<BuildRunnerTooOld>());
+    });
+
+    test('the member\'s own lock wins', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.13.9'));
+      fs.file('/ws/game/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('a folder above that is not a workspace is not searched', () {
+      fs.file('/ws/pubspec.yaml').writeAsStringSync('name: plain\n');
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('no lock anywhere is absent', () {
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('a folder the workspace does not list does not use its lock', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs.file('/ws/other/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: other\nresolution: workspace\n');
+      expect(
+        BuildRunnerVersion.of('/ws/other', fileSystem: fs),
+        isA<BuildRunnerAbsent>(),
+      );
+    });
+
+    test(
+      'a listed folder that does not resolve as a member does not either',
+      () {
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        fs.file('/ws/game/pubspec.yaml').writeAsStringSync('name: game\n');
+        expect(readGame(), isA<BuildRunnerAbsent>());
+      },
+    );
+
+    test('pubspec_overrides.yaml decides the resolution where it sets it', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/game/pubspec_overrides.yaml')
+          .writeAsStringSync('resolution: null\n');
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('the root\'s pubspec_overrides.yaml decides the workspace list', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/pubspec_overrides.yaml')
+          .writeAsStringSync('workspace:\n  - game\n');
+      fs.file('/ws/pubspec.yaml').writeAsStringSync('name: ws\n');
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('a non-list workspace override lists nothing', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/pubspec_overrides.yaml')
+          .writeAsStringSync('workspace: null\n');
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('a glob in the workspace list lists its matches', () {
+      fs
+          .file('/ws/pubspec.yaml')
+          .writeAsStringSync('name: ws\nworkspace:\n  - packages/*\n');
+      fs.file('/ws/packages/game/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: game\nresolution: workspace\n');
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(
+        BuildRunnerVersion.of('/ws/packages/game', fileSystem: fs),
+        isA<BuildRunnerOk>(),
+      );
+    });
+
+    test('a bracket expression in the workspace list lists its matches', () {
+      fs
+          .file('/ws/pubspec.yaml')
+          .writeAsStringSync('name: ws\nworkspace:\n  - app[12]\n');
+      fs.file('/ws/app2/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: app2\nresolution: workspace\n');
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(
+        BuildRunnerVersion.of('/ws/app2', fileSystem: fs),
+        isA<BuildRunnerOk>(),
+      );
+    });
+
+    test(
+      'a nested workspace member reaches the root lock through the chain',
+      () {
+        fs
+            .file('/ws/pubspec.yaml')
+            .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
+        fs.file('/ws/nested/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            'name: nested\nresolution: workspace\nworkspace:\n  - game\n',
+          );
+        fs.file('/ws/nested/game/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: game\nresolution: workspace\n');
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        expect(
+          BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
+          isA<BuildRunnerOk>(),
+        );
+      },
+    );
+
+    test(
+      'a nested folder the workspace chain does not list does not either',
+      () {
+        fs
+            .file('/ws/pubspec.yaml')
+            .writeAsStringSync('name: ws\nworkspace:\n  - nested\n');
+        fs.file('/ws/nested/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: nested\nresolution: workspace\n');
+        fs.file('/ws/nested/game/pubspec.yaml')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('name: game\nresolution: workspace\n');
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        expect(
+          BuildRunnerVersion.of('/ws/nested/game', fileSystem: fs),
+          isA<BuildRunnerAbsent>(),
+        );
+      },
+    );
+  });
 }

@@ -115,7 +115,8 @@ flutter create --platforms=macos .
 ```
 
 A debug build also needs permission to open the network port that Play and your IDE use to talk to
-the game. In `macos/Runner/DebugProfile.entitlements`, next to the keys already there:
+the game. A `macos/` folder made by `flutter create` already has it; if yours is older or was
+edited, make sure `macos/Runner/DebugProfile.entitlements` has this, next to the keys already there:
 
 ```xml
 <key>com.apple.security.network.server</key>
@@ -136,7 +137,7 @@ flutter run -d macos
 
 1. In Pyro, open your project's folder. The status bar shows the Flutter SDK it found, the
    `pyro_runtime` version and the generator ("Generating…", then "Up to date").
-2. Add a new scene (`assets/scenes/`), place an entity, give it a sprite and a hitbox, and attach one
+2. Add a new scene (`assets/scenes/`; ⌘N, or ⌘O to open an existing one), place an entity, give it a sprite and a hitbox, and attach one
    of your behaviors from the inspector.
 3. Press **Play** in the toolbar. The game builds and opens; the Console shows its output. If Play is
    grey, hover it or read the line in the toolbar: it says what is missing and how to fix it.

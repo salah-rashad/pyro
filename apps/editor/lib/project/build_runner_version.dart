@@ -2,6 +2,8 @@ import 'package:file/file.dart';
 import 'package:file/local.dart';
 import 'package:yaml/yaml.dart';
 
+import 'pubspec_lock.dart';
+
 /// The oldest `build_runner` whose output and locking Pyro's generator
 /// supervisor was written and recorded against (research R8, R9).
 const String minimumBuildRunner = '2.14.0';
@@ -11,15 +13,13 @@ const String minimumBuildRunner = '2.14.0';
 sealed class BuildRunnerVersion {
   const BuildRunnerVersion();
 
-  /// Reads [projectPath]'s `pubspec.lock`.
+  /// Reads [projectPath]'s `pubspec.lock`, or its workspace root's.
   static BuildRunnerVersion of(
     String projectPath, {
     FileSystem fileSystem = const LocalFileSystem(),
   }) {
     try {
-      final lock = fileSystem.file(
-        fileSystem.path.join(projectPath, 'pubspec.lock'),
-      );
+      final lock = findPubspecLock(fileSystem, projectPath);
       if (!lock.existsSync()) return const BuildRunnerAbsent();
       final yaml = loadYaml(lock.readAsStringSync());
       if (yaml is! Map) {

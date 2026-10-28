@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'code_watcher.dart';
 import 'console_buffer.dart';
 import 'console_line.dart';
+import 'image_watching.dart';
 import 'play_block.dart';
 import 'play_event.dart';
 import 'play_session.dart';
@@ -52,6 +54,19 @@ final class HotSwapFailed extends PlayNotice {
   String toString() => 'Hot-swap stopped working';
 }
 
+/// An image the running game uses changed on disk (FR-013); *Restart game*
+/// shows the new one.
+final class ImageChanged extends PlayNotice {
+  const ImageChanged(this.paths);
+
+  /// The project-relative paths of the images that changed since the game
+  /// started or was last restarted.
+  final Set<String> paths;
+
+  @override
+  String toString() => 'Image changed';
+}
+
 /// Starts a Play session for a project; `PlayClient.start` in the app,
 /// a fake in tests.
 typedef PlayStarter =
@@ -59,6 +74,15 @@ typedef PlayStarter =
 
 /// Makes the run link of a project; null when it can't (research R2).
 typedef RunLinkMaker = Future<RunLink?> Function(String projectPath);
+
+/// Makes the watcher of Dart code saves; [onReload] is what it asks for
+/// (research R10).
+typedef CodeWatcherMaker = CodeWatcher Function(void Function() onReload);
+
+/// Makes the watcher of the images in use; [onChanged] is told each batch of
+/// changed ones (research R11).
+typedef ImageWatcherMaker =
+    ImageWatching Function(void Function(Set<String> paths) onChanged);
 
 /// The open project's Play (spec 007, contracts/play-orchestration.md): at
 /// most one Play session at a time, its phase for the toolbar, its output
@@ -72,6 +96,8 @@ final class PlayController {
     required this._start,
     this.block,
     this._makeRunLink,
+    this._makeCodeWatcher,
+    this._makeImageWatcher,
   });
 
   /// The project the game runs from.
@@ -83,7 +109,12 @@ final class PlayController {
   final ConsoleBuffer _console;
   final PlayStarter _start;
   final RunLinkMaker? _makeRunLink;
+  final CodeWatcherMaker? _makeCodeWatcher;
+  final ImageWatcherMaker? _makeImageWatcher;
   RunLink? _runLink;
+  CodeWatcher? _codeWatcher;
+  ImageWatching? _imageWatcher;
+  final _changedImages = <String>{};
   final _phases = StreamController<PlayPhase>.broadcast();
   final _notices = StreamController<PlayNotice>.broadcast();
   var _phase = PlayPhase.stopped;
@@ -143,6 +174,7 @@ final class PlayController {
       onDone: () async {
         if (identical(_session, session)) _session = null;
         _restarting = false;
+        _stopWatching();
         await _removeRunLink();
         _setPhase(PlayPhase.stopped);
         ended.complete();
@@ -161,6 +193,7 @@ final class PlayController {
       _setPhase(PlayPhase.stopping);
       _pyro('Stopping the game…');
     }
+    _stopWatching();
     if (session == null) return;
     await session.stop();
     await _ended;
@@ -178,6 +211,8 @@ final class PlayController {
     final session = _session;
     if (session == null || _phase != PlayPhase.running) return;
     _restarting = true;
+    _changedImages.clear();
+    _watchImages(_imageWatcher?.clear());
     try {
       await session.restart();
     } on StateError {
@@ -208,7 +243,10 @@ final class PlayController {
       case PlayDebuggerAvailable():
         break;
       case PlayStarted(:final elapsed):
-        if (_phase == PlayPhase.starting) _setPhase(PlayPhase.running);
+        if (_phase == PlayPhase.starting) {
+          _setPhase(PlayPhase.running);
+          _startWatching();
+        }
         _pyro(
           'The game is running '
           '(started in ${(elapsed.inMilliseconds / 1000).toStringAsFixed(1)} s).',
@@ -261,6 +299,59 @@ final class PlayController {
           _notify(GameStopped(exitCode));
         }
     }
+  }
+
+  /// While the game runs: Dart saves reload its code once the generator is
+  /// done, and a changed image it uses is a notice.
+  void _startWatching() {
+    _stopWatching();
+    _codeWatcher = _makeCodeWatcher?.call(_reloadCode)?..start();
+    final images = _imageWatcher = _makeImageWatcher?.call(_onImagesChanged);
+    if (images != null) _watchImages(images.start());
+  }
+
+  /// Lets an image watcher's start or clear run on its own. Reading the
+  /// Scenes can fail (a folder removed by a `git checkout`): that is a line in
+  /// the Console, not an uncaught error with the image notice dead.
+  void _watchImages(Future<void>? work) {
+    if (work == null) return;
+    unawaited(
+      work.catchError((Object error) {
+        _pyro(
+          "Can't watch the images the game uses: $error",
+          ConsoleSeverity.warning,
+        );
+      }),
+    );
+  }
+
+  void _stopWatching() {
+    _codeWatcher?.close();
+    _codeWatcher = null;
+    _imageWatcher?.close();
+    _imageWatcher = null;
+    _changedImages.clear();
+  }
+
+  void _reloadCode() {
+    final session = _session;
+    if (session == null || _phase != PlayPhase.running) return;
+    try {
+      unawaited(session.reload().then<void>((_) {}, onError: (Object _) {}));
+    } on StateError {
+      // The game stopped meanwhile; its stop is reported on its own.
+    }
+  }
+
+  void _onImagesChanged(Set<String> paths) {
+    if (_phase != PlayPhase.running) return;
+    _changedImages.addAll(paths);
+    final names = (paths.toList()..sort()).join(', ');
+    _pyro(
+      'Image changed: $names. The game keeps the old one until it restarts.',
+      ConsoleSeverity.warning,
+    );
+    _notify(ImageChanged(Set.of(_changedImages)));
   }
 
   void _pyro(String text, [ConsoleSeverity severity = ConsoleSeverity.info]) =>

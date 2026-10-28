@@ -768,6 +768,19 @@ sequenceDiagram
   quiet, at most one queued). It stops with `app.stop`, then SIGTERM, then SIGKILL. It drops
   every VM service address and masks auth codes in all output. The run link, the asset
   re-point, the build_runner watcher, auto code reload and the Console come with #11's rest.
+- **Built in Phase 5 (spec 007, *Q125–Q138*):** the editor window's Play and Stop, the Console
+  (generator, game and Pyro lines, auth codes masked on entry), the run link and the asset
+  re-point before every Scene reload (with the spike's fallback), the Hot-swap failure rule and
+  *Restart game*, `GeneratorSupervisor` with the lock probe and External build_runner, code
+  reload once the generator is idle, the "Image changed" notice, *Attach debugger* (copies the
+  address, opens the VS Code and Android Studio guides) and the stop-before-quit question. **Not
+  built, on purpose:** the info file `.dart_tool/pyro/vm_service.json` and the opt-in
+  `.vscode/launch.json` described under *Attach* below, since Play writes nothing in the project
+  (FR-030); the address goes to the clipboard only. They stay in Phase 7 with the device list,
+  and so do the "toggle in settings" for code reload and the unauthenticated mode (code reload
+  is on, with no way to turn it off, until Settings exist). Those bullets describe the design
+  for that phase; the Phase 5 build is the clipboard, the guides and the Console redaction.
+  The end-to-end VS Code check below is spike 1's, with the info file.
 - **Code changes (*Q61*):** Pyro watches `lib/` and hot-reloads automatically, waiting until
   `build_runner` reports idle so it never reloads a half-written `.g.dart`. Toggle in settings, on
   by default. If an attached IDE also reloads, the duplicate reload is harmless (the content check
@@ -1014,7 +1027,7 @@ attach a custom Behavior and tweak its fields, press Play and see the change in 
 | 7 | Generator | Introspection, Type IDs + collisions, supertypes, Registry + Manifest emitters, error reporting, goldens, for every v1 Field type (*Q100*) | Nothing; the inspector's editors for the remaining Field types are item 5's | 6.5 |
 | 8 | Runtime | Full: loader, two-pass references, assets, lookup API, unknown-type handling, Hot-swap (*Q116*) | | 5 |
 | 9 | Behaviors in the inspector | Add/remove, compatibility filtering, Missing behavior state (so nothing is lost) | Reorder, Missing behavior polish | 2 |
-| 11 | Play | Run on the macOS desktop target by default (Hot-swap there verified in the vertical slice, ~0.5, *Q88*), daemon client, Console, Hot-swap trigger, auto code reload, build_runner lock/external mode, *Attach debugger* copying the current URI, image-restart toast | Device list + emulator boot, Attach info file, `launch.json`, unauthenticated mode | 4 |
+| 11 | Play (built in Phase 5, [`specs/007-play`](../specs/007-play/spec.md); the dry run is open) | Run on the macOS desktop target by default (Hot-swap there verified in the vertical slice, ~0.5, *Q88*), daemon client, Console, Hot-swap trigger, auto code reload, build_runner lock/external mode, *Attach debugger* copying the current URI, image-restart toast | Device list + emulator boot, Attach info file, `launch.json`, unauthenticated mode | 4 |
 | 12 | CI contract test | As in v0.1, turned on in the vertical slice (*Q88*) | | 1 |
 | 13 | `example/` game | A skeleton for the vertical slice and the contract test: one annotated Behavior, one custom component, one Scene, macOS target (*Q88*) | The small sample game | 0.5 |
 | 14 | Design system (core, *Q84, Q87*) | Foundations (interaction states, field box, panel focus, icons, gallery skeleton, test config) and the widgets whose behaviour items 3 and 5 would otherwise build in the panels: `PrTreeRow`, `PrPropertyRow`, `PrNumberProperty`, `PrVector2Property` | The other 25 components, the EditorShell, goldens (all since built ahead of the preview, which uses them throughout, *Q87*) | 5.5 |
