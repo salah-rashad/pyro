@@ -165,6 +165,23 @@ void main() {
       expect(readGame(), isA<BuildRunnerAbsent>());
     });
 
+    test('the root\'s pubspec_overrides.yaml decides the workspace list', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/pubspec_overrides.yaml')
+          .writeAsStringSync('workspace:\n  - game\n');
+      fs.file('/ws/pubspec.yaml').writeAsStringSync('name: ws\n');
+      expect(readGame(), isA<BuildRunnerOk>());
+    });
+
+    test('a non-list workspace override lists nothing', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/pubspec_overrides.yaml')
+          .writeAsStringSync('workspace: null\n');
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
     test('a glob in the workspace list lists its matches', () {
       fs
           .file('/ws/pubspec.yaml')

@@ -42,17 +42,33 @@ bool _resolvesInWorkspace(FileSystem fileSystem, String project) {
   return false;
 }
 
-/// Whether the `workspace:` of the pubspec in [folder] lists [project].
+/// Whether the `workspace:` of the pubspec in [folder] lists [project]; its
+/// `pubspec_overrides.yaml` overrides `pubspec.yaml` where it declares the
+/// key, even with a non-list value (which lists nothing).
 bool _listsMember(FileSystem fileSystem, String folder, String project) {
   final context = fileSystem.path;
-  final yaml = _readMap(fileSystem.file(context.join(folder, 'pubspec.yaml')));
-  final entries = yaml?['workspace'];
-  if (entries is! List) return false;
+  final entries = _workspaceEntries(fileSystem, folder);
+  if (entries == null) return false;
   final relative = context.split(context.relative(project, from: folder));
   return entries.whereType<String>().any((entry) {
     final pattern = context.split(context.normalize(entry));
     return _matches(pattern, relative);
   });
+}
+
+/// The declared `workspace:` entries of the pubspec in [folder], or null when
+/// neither pubspec declares the key. A declared non-list value is present but
+/// empty, so it overrides without listing anything.
+List<dynamic>? _workspaceEntries(FileSystem fileSystem, String folder) {
+  final context = fileSystem.path;
+  for (final name in ['pubspec_overrides.yaml', 'pubspec.yaml']) {
+    final yaml = _readMap(fileSystem.file(context.join(folder, name)));
+    if (yaml != null && yaml.containsKey('workspace')) {
+      final value = yaml['workspace'];
+      return value is List ? value : const [];
+    }
+  }
+  return null;
 }
 
 /// Whether the path segments [path] fit the glob segments [pattern]: `*`
