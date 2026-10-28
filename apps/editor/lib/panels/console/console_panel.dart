@@ -170,6 +170,9 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
     _listenTo(buffer);
     final sources = ref.watch(consoleSourceFilterProvider);
     final lines = buffer.filtered(sources);
+    // While paused, what the panel shows and copies is the frozen snapshot,
+    // not the live buffer.
+    final shown = _snapshot ?? lines;
     final c = PrColors.of(context);
     final only = sources.length == 1 ? sources.single : null;
     return PrPanel(
@@ -189,8 +192,7 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
           icon: PrIcons.copy,
           tooltip: 'Copy all',
           size: PrIconButtonSize.small,
-          // While paused, what is copied is what is shown.
-          onPressed: lines.isEmpty ? null : () => _copyAll(_snapshot ?? lines),
+          onPressed: shown.isEmpty ? null : () => _copyAll(shown),
           disabledReason: 'The Console is empty',
         ),
         PrIconButton(
@@ -250,7 +252,7 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                     ),
                   ),
                   Expanded(
-                    child: lines.isEmpty
+                    child: shown.isEmpty
                         ? Center(
                             child: Text(
                               buffer.lines.isEmpty

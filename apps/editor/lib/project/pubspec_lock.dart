@@ -1,4 +1,5 @@
 import 'package:file/file.dart';
+import 'package:glob/glob.dart';
 import 'package:yaml/yaml.dart';
 
 /// The `pubspec.lock` that resolved [projectPath]'s packages.
@@ -20,7 +21,7 @@ File findPubspecLock(FileSystem fileSystem, String projectPath) {
   var folder = context.dirname(project);
   while (true) {
     final lock = fileSystem.file(context.join(folder, 'pubspec.lock'));
-    if (lock.existsSync() && _listsMember(fileSystem, folder, project)) {
+    if (lock.existsSync() && _isMemberOf(fileSystem, folder, project)) {
       return lock;
     }
     final parent = context.dirname(folder);
@@ -42,6 +43,27 @@ bool _resolvesInWorkspace(FileSystem fileSystem, String project) {
   return false;
 }
 
+/// Whether [project] is a workspace member of [folder], directly or through
+/// nested workspaces: each hop up the chain is a pubspec whose `workspace:`
+/// lists the folder below it, up to [folder] itself.
+bool _isMemberOf(FileSystem fileSystem, String folder, String project) {
+  final context = fileSystem.path;
+  final root = context.normalize(context.absolute(folder));
+  var member = context.normalize(context.absolute(project));
+  if (member == root) return false;
+  while (member != root) {
+    var hop = context.dirname(member);
+    while (hop != root && !_listsMember(fileSystem, hop, member)) {
+      final parent = context.dirname(hop);
+      if (parent == hop) return false;
+      hop = parent;
+    }
+    if (!_listsMember(fileSystem, hop, member)) return false;
+    member = hop;
+  }
+  return true;
+}
+
 /// Whether the `workspace:` of the pubspec in [folder] lists [project]; its
 /// `pubspec_overrides.yaml` overrides `pubspec.yaml` where it declares the
 /// key, even with a non-list value (which lists nothing).
@@ -49,10 +71,9 @@ bool _listsMember(FileSystem fileSystem, String folder, String project) {
   final context = fileSystem.path;
   final entries = _workspaceEntries(fileSystem, folder);
   if (entries == null) return false;
-  final relative = context.split(context.relative(project, from: folder));
+  final relative = context.relative(project, from: folder);
   return entries.whereType<String>().any((entry) {
-    final pattern = context.split(context.normalize(entry));
-    return _matches(pattern, relative);
+    return Glob(entry, context: context).matches(relative);
   });
 }
 
@@ -70,28 +91,6 @@ List<dynamic>? _workspaceEntries(FileSystem fileSystem, String folder) {
   }
   return null;
 }
-
-/// Whether the path segments [path] fit the glob segments [pattern]: `*`
-/// and `?` within a segment, `**` across any number of them.
-bool _matches(List<String> pattern, List<String> path) {
-  if (pattern.isEmpty) return path.isEmpty;
-  if (pattern.first == '**') {
-    for (var skip = 0; skip <= path.length; skip++) {
-      if (_matches(pattern.sublist(1), path.sublist(skip))) return true;
-    }
-    return false;
-  }
-  if (path.isEmpty) return false;
-  final regex = RegExp('^${pattern.first.split('').map(_globChar).join()}\$');
-  return regex.hasMatch(path.first) &&
-      _matches(pattern.sublist(1), path.sublist(1));
-}
-
-String _globChar(String c) => switch (c) {
-  '*' => '[^/]*',
-  '?' => '[^/]',
-  _ => RegExp.escape(c),
-};
 
 Map<dynamic, dynamic>? _readMap(File file) {
   if (!file.existsSync()) return null;
