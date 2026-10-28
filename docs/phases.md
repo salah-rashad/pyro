@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Phase 2 done (2026-10-20): Scene format, #2 Document model, #7 Generator and #8 Runtime. Phase 3 (vertical slice) done (2026-10-22, [`specs/005-vertical-slice/`](../specs/005-vertical-slice/spec.md)): the whole loop ran on Linux and on the reference Mac and met every limit ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Vertical slice"). Phase 4 (Editor) done (2026-10-24, [`specs/006-editor/`](../specs/006-editor/spec.md)): a scene built from scratch in Pyro in `example/`, saved, reopened unchanged, with a deleted Behavior shown as Missing and its values kept ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Editor"). Phase 5 (Play) built (2026-10-25, [`specs/007-play/`](../specs/007-play/spec.md)); open: the dry run, the last task of the early preview, and the by-hand checks on the reference Mac ([`tasks.md`](../specs/007-play/tasks.md)) |
+| **Status** | Phase 2 done (2026-10-20): Scene format, #2 Document model, #7 Generator and #8 Runtime. Phase 3 (vertical slice) done (2026-10-22, [`specs/005-vertical-slice/`](../specs/005-vertical-slice/spec.md)): the whole loop ran on Linux and on the reference Mac and met every limit ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Vertical slice"). Phase 4 (Editor) done (2026-10-24, [`specs/006-editor/`](../specs/006-editor/spec.md)): a scene built from scratch in Pyro in `example/`, saved, reopened unchanged, with a deleted Behavior shown as Missing and its values kept ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Editor"). Phase 5 (Play) built (2026-10-25, [`specs/007-play/`](../specs/007-play/spec.md)); open: the dry run, the last task of the early preview, and T025 on the reference Mac (the baseline Hot-swap benchmark and quickstart §3.1) ([`tasks.md`](../specs/007-play/tasks.md)) |
 | **Source of truth** | [`project-plan.md`](project-plan.md) §14 owns scope, estimates and build order; this file only groups that order into phases and tracks progress |
 | **Sync rule** | When §14 changes (an item, an estimate, the order), change this file in the same commit. When a step here is finished, tick it here; §14 changes only if its scope or estimate changed |
 
@@ -40,7 +40,7 @@ flowchart LR
 | 2 — Data contract | #2 Document model, #7 Generator, #8 Runtime | 16 | 0 | ✅ |
 | 3 — Vertical slice | `example/` skeleton (part of #13), #12 contract test, first slice of #11 | 1.5 + (in #11) | 0 | ✅ |
 | 4 — Editor | #1 preview part with the editor window, #6, #4, #3, #5, #9 | 18 | 0 | ✅ |
-| 5 — Play | Rest of #11 preview part, README recipe | 4 | 4 (not re-estimated: the dry run and by-hand checks remain) | 🔶 |
+| 5 — Play | Rest of #11 preview part, README recipe | 4 | 4 (not re-estimated: the dry run and T025 remain) | 🔶 |
 | **Early preview** | | **~65.5** | **~4** | |
 | 6 — Testers and feedback | 5–8 testers, response table | — | — | ⬜ |
 | 7 — v0.1 breadth | #10, then the deferred parts of #1–#6, #9 and #11 | 20.5 | 20.5 | ⬜ |
@@ -201,8 +201,9 @@ Behavior's class shows it as Missing with its values kept. ✅
   re-point that keep it working with an IDE attached (§9.3, *Q74*); auto code reload after the
   generator goes idle (*Q61*); *Attach debugger* copying the current URI (*Q81*); the
   image-restart toast (*Q72*); "Game stopped" handling (*Q63*). Built and tested headless
-  (decisions *Q125–Q138*); still to do on the reference Mac: nothing but the dry run; the by-hand checks
-  (real VS Code attach, the frame check, `specs/007-play/quickstart.md` §3) are done
+  (decisions *Q125–Q138*); still open: the dry run, and on the reference Mac T025 (the baseline Hot-swap
+  benchmark and `specs/007-play/quickstart.md` §3.1); the other by-hand checks (real VS Code
+  attach, the frame check, the lifecycle checks) are done
 - [x] **README recipe** for adding Pyro to a project (stands in for the "Add Pyro" flow): the
   packages as git dependencies on this repository (they aren't on pub.dev until Phase 8; they
   depend on each other by version, so the recipe needs `dependency_overrides` for them too, as

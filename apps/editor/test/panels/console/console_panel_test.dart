@@ -283,6 +283,54 @@ void main() {
       },
     );
 
+    testWidgets('Clear while paused drops the snapshot too', (tester) async {
+      await pump(tester);
+      buffer.add('old line', source: ConsoleSource.game);
+      await settle(tester);
+      await tester.tap(find.byTooltip('Pause to select text'));
+      await settle(tester);
+      await tester.tap(find.byTooltip('Clear'));
+      await settle(tester);
+      buffer.add('new line', source: ConsoleSource.game);
+      await settle(tester);
+      expect(find.byType(SelectionArea), findsNothing);
+      expect(row('old line'), findsNothing);
+      expect(row('new line'), findsOneWidget);
+    });
+
+    testWidgets('Copy all while paused copies the snapshot only', (
+      tester,
+    ) async {
+      mockClipboard(tester);
+      await pump(tester);
+      buffer.add('before the pause', source: ConsoleSource.game);
+      await settle(tester);
+      await tester.tap(find.byTooltip('Pause to select text'));
+      await settle(tester);
+      buffer.add('after the pause', source: ConsoleSource.game);
+      await settle(tester);
+      await tester.tap(find.byTooltip('Copy all'));
+      await tester.pump();
+      expect(copied, contains('before the pause'));
+      expect(copied, isNot(contains('after the pause')));
+    });
+
+    testWidgets('changing the source filter while paused refreshes the '
+        'snapshot', (tester) async {
+      await pump(tester);
+      buffer
+        ..add('from the game', source: ConsoleSource.game)
+        ..add('from pyro', source: ConsoleSource.pyro);
+      await settle(tester);
+      await tester.tap(find.byTooltip('Pause to select text'));
+      await settle(tester);
+      await tester.tap(find.text('Pyro'));
+      await settle(tester);
+      expect(find.byType(SelectionArea), findsOneWidget);
+      expect(find.text('from pyro'), findsOneWidget);
+      expect(find.text('from the game'), findsNothing);
+    });
+
     testWidgets(
       'the snapshot holds the latest 1,000 lines, newest at the end',
       (tester) async {

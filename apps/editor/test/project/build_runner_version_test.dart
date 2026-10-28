@@ -136,5 +136,47 @@ void main() {
     test('no lock anywhere is absent', () {
       expect(readGame(), isA<BuildRunnerAbsent>());
     });
+
+    test('a folder the workspace does not list does not use its lock', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs.file('/ws/other/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: other\nresolution: workspace\n');
+      expect(
+        BuildRunnerVersion.of('/ws/other', fileSystem: fs),
+        isA<BuildRunnerAbsent>(),
+      );
+    });
+
+    test(
+      'a listed folder that does not resolve as a member does not either',
+      () {
+        fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+        fs.file('/ws/game/pubspec.yaml').writeAsStringSync('name: game\n');
+        expect(readGame(), isA<BuildRunnerAbsent>());
+      },
+    );
+
+    test('pubspec_overrides.yaml decides the resolution where it sets it', () {
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      fs
+          .file('/ws/game/pubspec_overrides.yaml')
+          .writeAsStringSync('resolution: null\n');
+      expect(readGame(), isA<BuildRunnerAbsent>());
+    });
+
+    test('a glob in the workspace list lists its matches', () {
+      fs
+          .file('/ws/pubspec.yaml')
+          .writeAsStringSync('name: ws\nworkspace:\n  - packages/*\n');
+      fs.file('/ws/packages/game/pubspec.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('name: game\nresolution: workspace\n');
+      fs.file('/ws/pubspec.lock').writeAsStringSync(_lock('2.15.1'));
+      expect(
+        BuildRunnerVersion.of('/ws/packages/game', fileSystem: fs),
+        isA<BuildRunnerOk>(),
+      );
+    });
   });
 }

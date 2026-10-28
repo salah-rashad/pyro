@@ -24,7 +24,9 @@ import '../../process/providers.dart';
 /// streamed row cost 15 frames over 16 ms in a flood (profile mode, SC-006).
 /// *Pause to select text* instead freezes the view into a snapshot of the
 /// latest [snapshotLines] lines whose text can be selected; *Resume* goes
-/// back to the live view.
+/// back to the live view. The snapshot is built lazily like the live list, so
+/// Select all reaches only the rows built so far; *Copy all* copies the whole
+/// snapshot while paused.
 class ConsolePanel extends ConsumerStatefulWidget {
   /// Creates the panel.
   const ConsolePanel({super.key});
@@ -56,6 +58,8 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
   void _listenTo(ConsoleBuffer buffer) {
     if (identical(buffer, _buffer)) return;
     unawaited(_changes?.cancel());
+    // A snapshot belongs to the buffer it was taken from.
+    if (_buffer != null) _snapshot = null;
     _buffer = buffer;
     _changes = buffer.changes.listen((_) {
       if (!mounted) return;
@@ -103,10 +107,22 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
       _follow();
       return;
     }
+    setState(() => _snapshot = _snapshotOf(lines));
+  }
+
+  /// The newest [ConsolePanel.snapshotLines] of [lines], copied.
+  static List<ConsoleLine> _snapshotOf(List<ConsoleLine> lines) {
     final from = lines.length > ConsolePanel.snapshotLines
         ? lines.length - ConsolePanel.snapshotLines
         : 0;
-    setState(() => _snapshot = List.of(lines.sublist(from)));
+    return List.of(lines.sublist(from));
+  }
+
+  /// Empties the buffer, and the snapshot with it: otherwise the next new
+  /// line would bring the cleared lines back into the paused view.
+  void _clear(ConsoleBuffer buffer) {
+    if (_snapshot != null) setState(() => _snapshot = null);
+    buffer.clear();
   }
 
   /// The snapshot: newest line at the bottom, as in the live view. A
@@ -173,14 +189,15 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
           icon: PrIcons.copy,
           tooltip: 'Copy all',
           size: PrIconButtonSize.small,
-          onPressed: lines.isEmpty ? null : () => _copyAll(lines),
+          // While paused, what is copied is what is shown.
+          onPressed: lines.isEmpty ? null : () => _copyAll(_snapshot ?? lines),
           disabledReason: 'The Console is empty',
         ),
         PrIconButton(
           icon: PrIcons.trash,
           tooltip: 'Clear',
           size: PrIconButtonSize.small,
-          onPressed: buffer.lines.isEmpty ? null : buffer.clear,
+          onPressed: buffer.lines.isEmpty ? null : () => _clear(buffer),
           disabledReason: 'The Console is empty',
         ),
       ],
@@ -218,6 +235,16 @@ class _ConsolePanelState extends ConsumerState<ConsolePanel> {
                           source == null
                               ? filter.showAll()
                               : filter.showOnly(source);
+                          // A paused view follows the filter too.
+                          if (_snapshot != null) {
+                            setState(
+                              () => _snapshot = _snapshotOf(
+                                buffer.filtered(
+                                  ref.read(consoleSourceFilterProvider),
+                                ),
+                              ),
+                            );
+                          }
                         },
                       ),
                     ),

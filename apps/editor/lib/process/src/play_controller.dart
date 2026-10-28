@@ -212,7 +212,7 @@ final class PlayController {
     if (session == null || _phase != PlayPhase.running) return;
     _restarting = true;
     _changedImages.clear();
-    unawaited(_imageWatcher?.clear());
+    _watchImages(_imageWatcher?.clear());
     try {
       await session.restart();
     } on StateError {
@@ -307,7 +307,22 @@ final class PlayController {
     _stopWatching();
     _codeWatcher = _makeCodeWatcher?.call(_reloadCode)?..start();
     final images = _imageWatcher = _makeImageWatcher?.call(_onImagesChanged);
-    if (images != null) unawaited(images.start());
+    if (images != null) _watchImages(images.start());
+  }
+
+  /// Lets an image watcher's start or clear run on its own. Reading the
+  /// Scenes can fail (a folder removed by a `git checkout`): that is a line in
+  /// the Console, not an uncaught error with the image notice dead.
+  void _watchImages(Future<void>? work) {
+    if (work == null) return;
+    unawaited(
+      work.catchError((Object error) {
+        _pyro(
+          "Can't watch the images the game uses: $error",
+          ConsoleSeverity.warning,
+        );
+      }),
+    );
   }
 
   void _stopWatching() {

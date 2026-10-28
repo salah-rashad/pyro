@@ -775,9 +775,12 @@ sequenceDiagram
   reload once the generator is idle, the "Image changed" notice, *Attach debugger* (copies the
   address, opens the VS Code and Android Studio guides) and the stop-before-quit question. **Not
   built, on purpose:** the info file `.dart_tool/pyro/vm_service.json` and the opt-in
-  `.vscode/launch.json` above, since Play writes nothing in the project (FR-030); the address
-  goes to the clipboard only. They stay in Phase 7 with the device list. The "toggle in
-  settings" for code reload also waits for Settings (Phase 7).
+  `.vscode/launch.json` described under *Attach* below, since Play writes nothing in the project
+  (FR-030); the address goes to the clipboard only. They stay in Phase 7 with the device list,
+  and so do the "toggle in settings" for code reload and the unauthenticated mode (code reload
+  is on, with no way to turn it off, until Settings exist). Those bullets describe the design
+  for that phase; the Phase 5 build is the clipboard, the guides and the Console redaction.
+  The end-to-end VS Code check below is spike 1's, with the info file.
 - **Code changes (*Q61*):** Pyro watches `lib/` and hot-reloads automatically, waiting until
   `build_runner` reports idle so it never reloads a half-written `.g.dart`. Toggle in settings, on
   by default. If an attached IDE also reloads, the duplicate reload is harmless (the content check
