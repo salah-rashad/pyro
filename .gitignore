@@ -8,3 +8,6 @@
 .dart_tool/
 build/
 coverage/
+
+# graphify knowledge-graph outputs and caches
+graphify-out/
