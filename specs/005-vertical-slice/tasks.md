@@ -540,11 +540,11 @@ the path or compile error named.
   differs, noting each difference), update that folder's README, and rerun quickstart §1.
 - [X] T047 [P] Add **Play session** and **Contract test** to `GLOSSARY.md` (plan § Documentation
   updates). This ships in the same PR as the code (constitution I).
-- [X] T048 [P] Add Q117–Q124 to `docs/decisions.md`, with the rows the plan lists: the CLI entry
+- [X] T048 [P] Add Q117–Q124 to `dev-docs/decisions.md`, with the rows the plan lists: the CLI entry
   point, the contract job's OS split, the latency limit, no run link or re-point in the slice, the
   URI dropped, the 150 ms debounce with one reload in flight, the contract test failing on
   Runtime warnings, and the `specs/005-vertical-slice` mirror branch.
-- [X] T049 Add a "Vertical slice" section to `docs/ARCHITECTURE.md`, after "Runtime". It covers:
+- [X] T049 Add a "Vertical slice" section to `dev-docs/ARCHITECTURE.md`, after "Runtime". It covers:
   - what was checked and on what machine;
   - the results of T025, T039, T045 and T046 (whether a save swaps on macOS, whether Dart-only
     reloads leave the Scene alone, the benchmark table, start and stop, the release check);
@@ -553,10 +553,10 @@ the path or compile error named.
 
   Where the same run covered spec 004's T038 and T043, update the Runtime section's open line.
   Steps that couldn't run are listed as to do.
-- [X] T050 Update `docs/project-plan.md` §9.3 (what the slice built: the daemon client, the
+- [X] T050 Update `dev-docs/project-plan.md` §9.3 (what the slice built: the daemon client, the
   debounce, redaction, no IDE workarounds yet), §13 ("Process clients" names the transcript
   fixtures), and §14 (the estimates of #11, #12 and #13 if they moved; plan Risks). In the same
-  commit, update `docs/phases.md`: tick Phase 3's items that are done; update the status line,
+  commit, update `dev-docs/phases.md`: tick Phase 3's items that are done; update the status line,
   the at-a-glance table and the "Left" counts; and close or carry over Phase 2's "Open" note
   (FR-028).
 - [X] T051 Tick or annotate `specs/004-runtime/tasks.md` T038 and T043 and

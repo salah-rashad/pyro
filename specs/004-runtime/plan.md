@@ -155,24 +155,24 @@ rather than starting `example/`, which is #13's job in Phase 3.
   - add **Stale reference** (a component of a Node a Hot-swap removed);
   - mention `PyroEntity` under **Entity**;
   - say under **Hot-swap** that it rebuilds only on changed content.
-- `docs/decisions.md`, from Q109:
+- `dev-docs/decisions.md`, from Q109:
   - `SpriteAnimation` Overrides are `{"asset", "animation"}`, with no `schemaVersion` bump;
   - the stale-reference warning's detection scope (amends Q71's ◇);
   - Hot-swap compares the kept file texts, no hash (refines Q67);
   - `RegistryType.acceptsParent` (extends Q57);
   - unknown Custom components and Node kinds are skipped with their subtree (details Q58);
   - missing assets fail the load.
-- `docs/project-plan.md`:
+- `dev-docs/project-plan.md`:
   - §6.2: the API as built; the loading order is no longer ◇ proposed; the stale-reference
     mechanism;
   - §7.1: the `SpriteAnimation` written form;
   - §10: `AssetSource` as built;
   - §14: #8's estimate, if it moved (Risks).
-- `docs/phases.md`: the same §14 change in the same commit (sync rule); tick #8 when done. Phase
+- `dev-docs/phases.md`: the same §14 change in the same commit (sync rule); tick #8 when done. Phase
   2's done-when is then met.
 - `specs/001-scene-format/contracts/scene-file-v1.md` and `specs/003-generator/research.md` R5:
   the amended written-form table (R13).
-- `docs/ARCHITECTURE.md`: a "Runtime" section with the SC-004 table, the manual Hot-swap run and
+- `dev-docs/ARCHITECTURE.md`: a "Runtime" section with the SC-004 table, the manual Hot-swap run and
   the release check (quickstart §4, §5).
 
 ## Risks

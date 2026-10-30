@@ -1,6 +1,6 @@
 # Spike #1 — Play, Hot-swap and Attach
 
-Throwaway code for the v0.0 de-risking spike (`docs/project-plan.md` §14, §9.3, §15.3).
+Throwaway code for the v0.0 de-risking spike (`dev-docs/project-plan.md` §14, §9.3, §15.3).
 Findings go into `ARCHITECTURE.md`; nothing here ships.
 
 | Folder | What it is |
@@ -15,7 +15,7 @@ Findings go into `ARCHITECTURE.md`; nothing here ships.
 - **(c)** VS Code attaches: breakpoints hit, and IDE hot reload works while the driver's
   `flutter run` is still connected (the deciding test for ADR 0001).
 - **(d)** VS Code attaches with auth codes on through the `vmServiceInfoFile` entry
-  (`docs/decisions.md` Q81), whether it is started after the game or before it.
+  (`dev-docs/decisions.md` Q81), whether it is started after the game or before it.
 
 Run (a) and (b) on the iOS simulator, an Android emulator **and one physical phone**.
 
@@ -250,7 +250,7 @@ the quickest loop for iterating on the spike.
   one flutter_tools uses), so it may change between Flutter releases. The DevFS name clash is
   handled separately with `--project-root` (above). **Decided (Q74):** the Studio adopts
   `--project-root` plus the re-point, keeping "stop reloading while an IDE is attached" as the
-  fallback. See `docs/ARCHITECTURE.md`.
+  fallback. See `dev-docs/ARCHITECTURE.md`.
 - **VS Code shows "paused" after any hot restart while both are connected** (driver `R` or
   VS Code's own restart), with no breakpoints set and a nonsense top frame (`List.add`,
   `int.&`, `rotl32` called from `List.add`). The game keeps running and `s`/`t` still work.

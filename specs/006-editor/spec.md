@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Phase 4 — Editor (docs/phases.md): #1 App shell and editor window
+**Input**: User description: "Phase 4 — Editor (dev-docs/phases.md): #1 App shell and editor window
 (preview part: Riverpod providers, project list and open project, basic SDK detection, Runtime
 compatibility check from `pubspec.lock`, the editor window on `PrEditorShell` with panel slots,
 scene tabs, new/open/save scene, the dirty marker, close confirmation, recovery *Restore*
@@ -662,11 +662,11 @@ close/reopen cycle, and hot-swaps in the running game.
   (phases.md, Phase 4 Tests). Tests MUST be deterministic: no real network, no wall-clock
   sleeps, no real SDK or device (constitution V).
 - **FR-040**: The phase MUST end with the manual run of story 7 on the reference Mac (macOS,
-  Apple M4, Flutter 3.44.2), recorded in `docs/ARCHITECTURE.md`: the built-from-scratch scene
+  Apple M4, Flutter 3.44.2), recorded in `dev-docs/ARCHITECTURE.md`: the built-from-scratch scene
   saved, closed, reopened unchanged; the Behavior's class deleted → Missing with values kept;
   the scene loads and hot-swaps in the running game as a hand-written one does; the frame
   budget check of FR-023 with its numbers; any workaround needed.
-- **FR-041**: `docs/phases.md` MUST be updated in the same change that closes the phase:
+- **FR-041**: `dev-docs/phases.md` MUST be updated in the same change that closes the phase:
   Phase 4's items ticked, the status line and counts updated (constitution, "Development
   Workflow"; §14 changes only if scope or estimates changed).
 

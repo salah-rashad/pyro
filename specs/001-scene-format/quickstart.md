@@ -62,7 +62,7 @@ dart compile exe benchmark/scene_codec_benchmark.dart -o /tmp/scene_bench && /tm
 The benchmark builds a deterministic 1,000-Node Scene (entities with Behaviors, sprites,
 hitboxes), then times `decode` and `encode` over 50 runs after warm-up. Expected for the AOT
 binary on the reference Mac: median decode and median encode each under 100 ms. Record the
-numbers in `docs/ARCHITECTURE.md` alongside the spike measurements.
+numbers in `dev-docs/ARCHITECTURE.md` alongside the spike measurements.
 
 ## 5. Refuse a newer file
 

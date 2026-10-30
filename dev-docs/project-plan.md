@@ -206,7 +206,7 @@ One repository, **Dart pub workspaces** (*Q28*).
 pyro/                      ← repo root (this folder)
 ├─ pubspec.yaml                    ← workspace root
 ├─ GLOSSARY.md
-├─ docs/
+├─ dev-docs/
 │  ├─ project-plan.md              ← this document
 │  ├─ decisions.md
 │  ├─ adr/

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Phase 5 — Play (docs/phases.md): #11 Play, rest of the preview part —
+**Input**: User description: "Phase 5 — Play (dev-docs/phases.md): #11 Play, rest of the preview part —
 build_runner watcher with the lock probe, external mode and takeover (Q48, Q77); Play/Stop on the
 macOS desktop target; Console with URI redaction (§9.4, Q81); Hot-swap on save with the run link
 and asset re-point that keep it working with an IDE attached (§9.3, Q74); auto code reload after

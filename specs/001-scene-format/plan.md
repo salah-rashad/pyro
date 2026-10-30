@@ -117,12 +117,12 @@ packages/pyro_runtime/
 
 - `GLOSSARY.md`: add **Repair report** (and *canonical form* if it is used in user-facing
   docs).
-- `docs/project-plan.md` §7.1: replace the example with the contract's (expanded objects,
+- `dev-docs/project-plan.md` §7.1: replace the example with the contract's (expanded objects,
   `props` on sprites and hitboxes, `{"asset": …}`, `#AARRGGBB`), and link the contract.
-- `docs/decisions.md`: record the new format decisions as the next Q numbers: the version-bump
+- `dev-docs/decisions.md`: record the new format decisions as the next Q numbers: the version-bump
   rule (FR-020a), the tagged asset references and colour form (R6), the canonical number form
   (R3), and repair in games with a debug warning (FR-024a).
-- `docs/phases.md`: tick "Scene format" when done.
+- `dev-docs/phases.md`: tick "Scene format" when done.
 
 ## Complexity Tracking
 

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "Phase 3 — Vertical slice (docs/phases.md): an `example/` Flame game
+**Input**: User description: "Phase 3 — Vertical slice (dev-docs/phases.md): an `example/` Flame game
 in the workspace (one annotated Behavior, one custom component, one hand-written Scene JSON,
 loaded through PyroScene and the generated Registry, macOS target enabled); #12 CI contract test
 (run the generator on example/, check committed Registry and Manifest via git diff on Flutter
@@ -357,7 +357,7 @@ after each run. Close the window by hand once and check the client's report.
 **Verification**
 
 - **FR-026**: The slice MUST end with a manual end-to-end check on the reference Mac (macOS,
-  Apple M4, Flutter 3.44.2) that records, in `docs/ARCHITECTURE.md`: whether a Scene save swaps
+  Apple M4, Flutter 3.44.2) that records, in `dev-docs/ARCHITECTURE.md`: whether a Scene save swaps
   the Scene, whether a Dart-only reload leaves it alone, the time from save to visible change
   over at least ten saves (median and worst), and any workaround needed. If macOS Hot-swap does
   not work, it MUST record the failure and a proposed default Play target for the author to

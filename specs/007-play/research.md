@@ -1,11 +1,11 @@
 # Research: Play (Phase 5)
 
 Each entry is a decision the plan rests on. Sources are the project's own documents and code read
-on 2026-10-24: `docs/project-plan.md` §9, `docs/ARCHITECTURE.md` (spikes #1 and #2 and the vertical
-slice), `docs/decisions.md`, the Play client in `apps/editor/lib/process/`, the Type catalog
+on 2026-10-24: `dev-docs/project-plan.md` §9, `dev-docs/ARCHITECTURE.md` (spikes #1 and #2 and the vertical
+slice), `dev-docs/decisions.md`, the Play client in `apps/editor/lib/process/`, the Type catalog
 provider, `packages/pyro_runtime`'s `PyroScene`, and `example/`. Nothing here was run against a
 Flutter SDK; the items that need a run on the reference Mac are listed at the end (**To confirm
-while building**). When the work is built, the decisions are recorded in `docs/decisions.md` as
+while building**). When the work is built, the decisions are recorded in `dev-docs/decisions.md` as
 Q125 onward.
 
 ## R1 — The game's Hot-swap report is a Runtime line, not a game line

@@ -27,7 +27,7 @@ Icon(PrIcons.hitbox, size: PrSizes.iconSm);
 ## Source of the tokens
 
 The design system was made in Claude Design from prompt 0 of
-[`docs/claude-design-prompts.md`](../../docs/claude-design-prompts.md).
+[`dev-docs/claude-design-prompts.md`](../../dev-docs/claude-design-prompts.md).
 [`design/tokens.json`](design/tokens.json) is an unmodified copy of its
 `tokens.json`; `test/tokens_test.dart` fails when the Dart tokens drift from
 it. To pick up a design change, replace the file and fix the Dart side until
@@ -50,7 +50,7 @@ values, then build the screen from `pyro_ui` widgets. Where a design and
 `tokens.json` disagree, `tokens.json` wins. The files are large (1.5–2.2 MB,
 mostly embedded assets), so search them rather than reading them whole. More
 views are added here as they are designed from
-[`docs/claude-design-prompts.md`](../../docs/claude-design-prompts.md).
+[`dev-docs/claude-design-prompts.md`](../../dev-docs/claude-design-prompts.md).
 
 Naming: token `surface-panel` is `PrColors.surfacePanel`, `space-2` is
 `PrSpacing.s2`, `radius-sm` is `PrRadii.sm`, `size-row-tree` is
@@ -73,7 +73,7 @@ Naming: token `surface-panel` is `PrColors.surfacePanel`, `space-2` is
 
 ## Components
 
-Built from [`docs/ui-components-plan.md`](../../docs/ui-components-plan.md)
+Built from [`dev-docs/ui-components-plan.md`](../../dev-docs/ui-components-plan.md)
 (Q84). Each has a page in the [gallery](example) (`cd example && flutter run
 -d macos`) laid out like its `preview.html`, and widget tests per state.
 

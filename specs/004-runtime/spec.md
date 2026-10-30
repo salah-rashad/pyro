@@ -6,8 +6,8 @@
 
 **Status**: Draft
 
-**Input**: User description: "#8 Runtime (pyro_runtime, full scope per docs/project-plan.md §14
-and docs/phases.md Phase 2): PyroScene.load with the two-pass loading order (reads each Scene
+**Input**: User description: "#8 Runtime (pyro_runtime, full scope per dev-docs/project-plan.md §14
+and dev-docs/phases.md Phase 2): PyroScene.load with the two-pass loading order (reads each Scene
 with SceneCodec.decode and calls warnAboutRepairs after it, FR-024a), building the built-in Node
 kinds and custom ones through the Registry, AssetSource and asset fields (the Q78 loader), lookup
 API (find, findAll, paths), unknown-type handling (Q58), Hot-swap (onHotReload, content hash,

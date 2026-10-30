@@ -33,7 +33,7 @@ private, final, static, a getter or setter, of an unsupported type, or
 non-nullable without a default. Entity references, `Sprite` and
 `SpriteAnimation` fields must be nullable. The errors are also written into the
 Manifest's `errors`, and the classes concerned are left out of both files. See
-[`docs/project-plan.md`](../../docs/project-plan.md) §6.1 and
+[`dev-docs/project-plan.md`](../../dev-docs/project-plan.md) §6.1 and
 [`specs/003-generator/`](../../specs/003-generator/spec.md).
 
 ## Checking the committed files in CI

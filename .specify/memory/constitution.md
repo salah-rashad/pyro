@@ -49,7 +49,7 @@ Each package has one job, and the dependency graph is a rule, not a convention.
 - Packages expose a deliberate public surface through their library file; everything else
   stays under `lib/src/`.
 - A change that adds a package dependency or crosses a boundary MUST say so in its plan and,
-  if it changes the architecture, be recorded as a decision (`docs/decisions.md`) or an ADR.
+  if it changes the architecture, be recorded as a decision (`dev-docs/decisions.md`) or an ADR.
 
 **Rationale:** isolation keeps user bugs and editor bugs apart, keeps the shipped runtime small,
 and lets each part be tested and replaced on its own.
@@ -141,9 +141,9 @@ iterate on quickly.
 
 ## Development Workflow and Quality Gates
 
-- **Sources of truth:** `docs/project-plan.md` owns scope and design; `docs/decisions.md` records
-  decisions as numbered questions (`Qnn`); `docs/adr/` holds architecture decisions;
-  `docs/ARCHITECTURE.md` records what was verified; `docs/phases.md` tracks progress and MUST be
+- **Sources of truth:** `dev-docs/project-plan.md` owns scope and design; `dev-docs/decisions.md` records
+  decisions as numbered questions (`Qnn`); `dev-docs/adr/` holds architecture decisions;
+  `dev-docs/ARCHITECTURE.md` records what was verified; `dev-docs/phases.md` tracks progress and MUST be
   updated in the same commit when project-plan §14 changes.
 - **Spec Kit flow:** each feature's `plan.md` MUST pass the Constitution Check before research
   and again after design. A violation is either fixed or justified in Complexity Tracking with
@@ -176,7 +176,7 @@ plan and decisions log describe *what* Pyro is; this file governs *how* it is bu
 - **Compliance:** every feature plan runs the Constitution Check; every change is reviewed against
   the principles before merge; complexity and budget overruns MUST be justified in writing.
   Principle IV is non-negotiable and cannot be waived by a plan.
-- **Runtime guidance:** day-to-day design detail lives in `docs/project-plan.md`,
-  `docs/ARCHITECTURE.md`, `docs/ui-components-plan.md` and `GLOSSARY.md`.
+- **Runtime guidance:** day-to-day design detail lives in `dev-docs/project-plan.md`,
+  `dev-docs/ARCHITECTURE.md`, `dev-docs/ui-components-plan.md` and `GLOSSARY.md`.
 
 **Version**: 1.1.0 | **Ratified**: 2026-10-18 | **Last Amended**: 2026-10-18

@@ -152,16 +152,16 @@ the published package by `.pubignore`; it is not Phase 3's `example/` game, whic
 
 - `GLOSSARY.md`: add **Image path** (the `ImagePath` Field type), **Generator error** /
   **Generator warning**, and **Parent type** (the Node type a Behavior requires).
-- `docs/decisions.md`: the next Q numbers (from Q100) for this spec's decisions: every v1 Field
+- `dev-docs/decisions.md`: the next Q numbers (from Q100) for this spec's decisions: every v1 Field
   type in #7 now (spec Clarifications); `ImagePath`; nullable reference and sprite fields;
   `@Editable` on fields only; unused `@Editable` is a warning; the `manifestVersion` rule;
   `min`/`max` checks; no `build.yaml` in games (FR-027).
-- `docs/project-plan.md`: §6.1 (annotations as built, `ImagePath`, the added rules), §7.3 (the
+- `dev-docs/project-plan.md`: §6.1 (annotations as built, `ImagePath`, the added rules), §7.3 (the
   Manifest as in contracts/manifest-v1.md, `warnings`, codes), §14 (the remaining Field types move
   from v0.1's #7 into the preview's #7; estimates 4.5 → ~6.5 and 2 → 0, per the author's review),
   the README recipe and "Add Pyro" items no longer add `build.yaml`.
-- `docs/phases.md`: same §14 changes in the same commit (sync rule); tick #7 when done.
-- `docs/ARCHITECTURE.md`: a "Generator" section with what was verified (R1, R12 probe, the watch
+- `dev-docs/phases.md`: same §14 changes in the same commit (sync rule); tick #7 when done.
+- `dev-docs/ARCHITECTURE.md`: a "Generator" section with what was verified (R1, R12 probe, the watch
   latency of R13).
 - `.github/workflows/ci.yml`: the `contract` job's TODO comment points at `fixture_game` as the
   pattern #12 reuses for `example/`.

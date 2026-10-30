@@ -1,7 +1,7 @@
 # Spike #2 — Generator shape and latency
 
-Throwaway code for the v0.0 de-risking spike (`docs/project-plan.md` §14 row 2, §7.3, §9.2,
-§15.3 item 2; decisions Q38, Q48, Q68). Findings go into `docs/ARCHITECTURE.md`; nothing here
+Throwaway code for the v0.0 de-risking spike (`dev-docs/project-plan.md` §14 row 2, §7.3, §9.2,
+§15.3 item 2; decisions Q38, Q48, Q68). Findings go into `dev-docs/ARCHITECTURE.md`; nothing here
 ships.
 
 | Folder | What it is |

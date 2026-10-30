@@ -132,8 +132,8 @@ not decide the verdict.
 
 ## 5. After it passes
 
-- Tick Phase 5 in `docs/phases.md` and the status line; add the verified behavior and the
-  measurements to `docs/ARCHITECTURE.md` ("Play"); record decisions Q125– in `docs/decisions.md`;
+- Tick Phase 5 in `dev-docs/phases.md` and the status line; add the verified behavior and the
+  measurements to `dev-docs/ARCHITECTURE.md` ("Play"); record decisions Q125– in `dev-docs/decisions.md`;
   add the new terms to `GLOSSARY.md`.
 - Re-run the vertical slice's checks (`benchmark/hot_swap_latency.dart` limits from spec 005) and
   the contract job: they must still pass.

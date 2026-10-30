@@ -186,7 +186,7 @@ packages/pyro_runtime/
 example/
 └── lib/example_game.dart          # EDIT — drops its own "Scene reloaded" print (the Runtime prints it now);
                                    #        the benchmark and quickstart wait for the Runtime's line
-docs/                              # GLOSSARY.md (root), decisions.md (Q125–), phases.md, ARCHITECTURE.md,
+dev-docs/                          # GLOSSARY.md (root), decisions.md (Q125–), phases.md, ARCHITECTURE.md,
                                    # project-plan.md §9 note — updated in the same commits
 specs/007-play/dry-run-report.md   # written during the dry run (FR-033)
 ```

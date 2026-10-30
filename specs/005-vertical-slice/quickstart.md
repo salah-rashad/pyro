@@ -71,7 +71,7 @@ clone to the window is under 5 minutes (SC-001).
 
 ## §5. The slice end to end (reference Mac)
 
-Record every result in `docs/ARCHITECTURE.md`, section "Vertical slice" (FR-026).
+Record every result in `dev-docs/ARCHITECTURE.md`, section "Vertical slice" (FR-026).
 
 1. **Play through the client.** Run
    `cd apps/editor && dart run bin/play.dart ../../example --record /tmp/start.txt`. The window

@@ -6,7 +6,7 @@
 
 **Status**: Draft
 
-**Input**: User description: "#2 Document model (Phase 2 of docs/phases.md), in the app: add
+**Input**: User description: "#2 Document model (Phase 2 of dev-docs/phases.md), in the app: add
 `freezed` (and Riverpod, for Phase 4); `SceneDocument` (flat `NodeId → Node` map over the shared
 scene model in pyro_runtime), named transactions, undo/redo with coalescing, dirty flag, atomic
 save/load, recovery file (Q55; the interval is a fixed default until Settings arrive in Phase 7,

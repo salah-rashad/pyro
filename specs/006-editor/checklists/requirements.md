@@ -34,7 +34,7 @@
 - Items marked complete require spec updates before `$speckit-clarify` or `$speckit-plan`
 - **House-style note on the "no implementation details" items (passed with a reading):** this
   repository's specs (001–005) deliberately name the settled technologies — Flutter, Riverpod,
-  Flame, `Pr` components, file names, §/Q/ADR references — because `docs/project-plan.md` and
+  Flame, `Pr` components, file names, §/Q/ADR references — because `dev-docs/project-plan.md` and
   the constitution have *already made* those decisions; the spec cites them as constraints, it
   does not choose them. No new implementation decision is introduced here: everything technical
   in the spec traces to a plan section, decision (*Qnn*), ADR or a prior spec. The "written for

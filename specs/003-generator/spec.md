@@ -11,7 +11,7 @@
 classes, the build-time rules of §6.1, Type IDs and collisions (ADR 0002), supertypes and parent
 types (Q57), the Registry and Manifest emitters into `lib/` with `build.yaml` (Q68), errors
 reported in the Manifest, for the preview's Field types. References: project-plan §6.1, §7.3,
-§9.2; docs/phases.md Phase 2; spike `spikes/02_generator/`. Done-when for this item: the
+§9.2; dev-docs/phases.md Phase 2; spike `spikes/02_generator/`. Done-when for this item: the
 generator's goldens pass on annotated fixtures, including error cases (Type ID collision,
 unsupported field, bad constructor)."
 

@@ -25,7 +25,7 @@ Phase 3 joins the data contract end to end, with no editor UI:
   SC-004–SC-006 on the Mac (R14).
 
 It ends with a manual run on the reference Mac (quickstart §5), recorded in
-`docs/ARCHITECTURE.md`. That run decides whether macOS stays the preview's default Play target.
+`dev-docs/ARCHITECTURE.md`. That run decides whether macOS stays the preview's default Play target.
 
 ## Technical Context
 
@@ -167,7 +167,7 @@ callers in this slice. The Play button's provider is the third, in Phase 4.
 - `GLOSSARY.md`: add **Play session** (one run of the game from Play to stop; *Avoid*: run,
   launch) and **Contract test** (the CI check that `example/`'s generated files and Scenes still
   agree with the Generator and the Runtime).
-- `docs/decisions.md`, from Q117:
+- `dev-docs/decisions.md`, from Q117:
   - the client's entry point is a CLI in `apps/editor/bin/` until the Play button (spec
     Clarifications);
   - the contract job's committed-files check runs on all three OSes, and the golden and Scene
@@ -180,12 +180,12 @@ callers in this slice. The Play button's provider is the third, in Phase 4.
   - the contract test fails on any Runtime warning as well as on errors (R13; spec analysis
     finding I1);
   - spec 005 runs on a `specs/005-vertical-slice` mirror of the session branch (Risks).
-- `docs/project-plan.md`: §9.3 notes what the slice built (daemon client, debounce, redaction);
+- `dev-docs/project-plan.md`: §9.3 notes what the slice built (daemon client, debounce, redaction);
   §13 "Process clients" names the transcript fixtures; §14 updates the estimates of #11, #12
   and #13 if they moved.
-- `docs/phases.md`: tick Phase 3's items, update the status line and counts, and close or carry
+- `dev-docs/phases.md`: tick Phase 3's items, update the status line and counts, and close or carry
   over Phase 2's "Open" notes (FR-028), in the same commit as any §14 change (sync rule).
-- `docs/ARCHITECTURE.md`: a new "Vertical slice" section with the manual results, the benchmark
+- `dev-docs/ARCHITECTURE.md`: a new "Vertical slice" section with the manual results, the benchmark
   table and the release check (FR-026, FR-027), plus whichever of spec 004's T038 and T043 the
   same run closes.
 - `specs/003-generator/tasks.md` T043 and `specs/004-runtime/tasks.md` T038 and T043: tick them, or

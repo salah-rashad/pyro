@@ -1,7 +1,7 @@
 # Spike #3 — Disk rendering
 
-Throwaway code for the v0.0 de-risking spike (`docs/project-plan.md` §14 row 3, §10, §12,
-§15.3 item 3; decisions Q8, Q10, Q18, Q31). Findings go into `docs/ARCHITECTURE.md`; nothing
+Throwaway code for the v0.0 de-risking spike (`dev-docs/project-plan.md` §14 row 3, §10, §12,
+§15.3 item 3; decisions Q8, Q10, Q18, Q31). Findings go into `dev-docs/ARCHITECTURE.md`; nothing
 here ships.
 
 | Path | What it is |

@@ -11,7 +11,7 @@ Run `dart pub get` once at the repository root first: the app is a member of
 the root pub workspace.
 
 > **Status:** early preview, in progress. See
-> [`docs/phases.md`](../../docs/phases.md) for what is built.
+> [`dev-docs/phases.md`](../../dev-docs/phases.md) for what is built.
 
 ## Play
 

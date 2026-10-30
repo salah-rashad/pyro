@@ -130,16 +130,16 @@ diffs them, and they must pass the repo's format check like any file (tasks.md T
 
 - `GLOSSARY.md`: add **Transaction**, **Coalescing key**, **Recovery copy** and **Unsaved
   changes** (the dirty state; avoid "dirty" in user-facing text).
-- `docs/decisions.md`: the next Q numbers (from Q94) for this spec's decisions: the toolchain
+- `dev-docs/decisions.md`: the next Q numbers (from Q94) for this spec's decisions: the toolchain
   and prerelease freezed (R1); save refused when the file changed on disk (FR-019a); repaired
   Scenes open with unsaved changes (FR-016); recovery copies outside the project with a 30-day
   prune (FR-025, FR-025a); saving refused while the Runtime's version is unknown (FR-022).
-- `docs/project-plan.md` §8.1, §8.2: the parent index beside the Node map (R2), identity
+- `dev-docs/project-plan.md` §8.1, §8.2: the parent index beside the Node map (R2), identity
   equality (R4), the coalescing and dirty rules (R5), the change check on save (R8) and the
   recovery location (R11). §8.5 stays for #1.
-- `docs/ARCHITECTURE.md`: the verified resolution finding (R1: `test` caps analyzer at 12 on
+- `dev-docs/ARCHITECTURE.md`: the verified resolution finding (R1: `test` caps analyzer at 12 on
   Flutter 3.44.2, so spike #4's versions don't resolve in the workspace).
-- `docs/phases.md`: tick #2 when done.
+- `dev-docs/phases.md`: tick #2 when done.
 
 ## Risks
 

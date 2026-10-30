@@ -73,4 +73,4 @@ viewport refresh (≤ 200 ms, only the reading Nodes rebuild — visible with a 
 ## 6. Done when
 
 phases.md Phase 4 is ticked, the numbers and findings from §2–§5 are recorded in
-`docs/ARCHITECTURE.md`, and §14/phases.md counts are updated in the same commit (FR-041).
+`dev-docs/ARCHITECTURE.md`, and §14/phases.md counts are updated in the same commit (FR-041).

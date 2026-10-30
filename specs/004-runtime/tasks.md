@@ -423,20 +423,20 @@ Registry and `rootBundle`
 **Purpose**: the budgets measured, documentation in sync, final checks
 
 - [X] T042 [P] Write `rt/benchmark/load_benchmark_test.dart` (SC-004, quickstart §4). Reuse the 1,000-Node Scene generator from `rt/benchmark/scene_codec_benchmark.dart`: move it to `rt/benchmark/support/benchmark_scene.dart` and import it from both, with entities, sprites on 10 distinct images, hitboxes, and Custom components and Behaviors from a small benchmark Registry. Use a `MemoryAssetSource` with pre-made images (so image decoding is excluded). Report the median and p95 of 20 runs each for `PyroScene.load`, a no-op Hot-swap check (`contentChanged` on unchanged texts), and a full rebuild (load into a mounted Scene + swap). `expect` each median under 50 ms, 5 ms and 100 ms. Also record the longest synchronous pause of the isolate during a load and during a rebuild: run a `Timer.periodic(Duration.zero)` probe alongside and report the longest gap between its ticks. No `expect` on it yet (spec Clarifications).
-- [ ] T043 On the reference Mac, run T042 and quickstart §5 step 4 (the release build checked with `strings … | grep -c "couldn't Hot-swap"` → 0, SC-006). Record the table (including the longest pauses, and noting that the no-op figure times `contentChanged` alone, not the whole `onHotReload` call), the configuration (macOS, Apple M4, Flutter 3.44.2, `flutter test` JIT) and the release result. Then propose a pause limit to the author. Once they set it, add it to SC-004 and plan.md, add the `expect` to T042's benchmark, and if the limit needs it, make `scene_builder.dart` yield between passes (and every ~200 Nodes in pass 1), recording the limit as a decision in `docs/decisions.md`. Record all of this in a new "Runtime" section of `docs/ARCHITECTURE.md`, after the Generator section. If this can't run on the reference Mac in the implementing session, leave the task open and say so in the PR
+- [ ] T043 On the reference Mac, run T042 and quickstart §5 step 4 (the release build checked with `strings … | grep -c "couldn't Hot-swap"` → 0, SC-006). Record the table (including the longest pauses, and noting that the no-op figure times `contentChanged` alone, not the whole `onHotReload` call), the configuration (macOS, Apple M4, Flutter 3.44.2, `flutter test` JIT) and the release result. Then propose a pause limit to the author. Once they set it, add it to SC-004 and plan.md, add the `expect` to T042's benchmark, and if the limit needs it, make `scene_builder.dart` yield between passes (and every ~200 Nodes in pass 1), recording the limit as a decision in `dev-docs/decisions.md`. Record all of this in a new "Runtime" section of `dev-docs/ARCHITECTURE.md`, after the Generator section. If this can't run on the reference Mac in the implementing session, leave the task open and say so in the PR
   - *Spec 005:* the release check runs there on `example/` (spec 005 T046, quickstart §5.9). The timings and the pause limit stay this task's.
 - [X] T044 [P] Update `GLOSSARY.md` (plan.md, Documentation updates):
   - add **Asset source**, **Animation file** and **Stale reference**, each one line in the file's style;
   - add to **Entity** that its component in games is `PyroEntity`;
   - add to **Hot-swap** that it rebuilds only when the Scene's content changed.
-- [X] T045 [P] Add decisions from Q109 to `docs/decisions.md`, each citing "Runtime spec, 2026-10-20":
+- [X] T045 [P] Add decisions from Q109 to `dev-docs/decisions.md`, each citing "Runtime spec, 2026-10-20":
   - `SpriteAnimation` Overrides are `{"asset", "animation"}` with no `schemaVersion` bump (FR-034);
   - the stale-reference warning detects transform changes, re-adding and `PyroScene` API calls (amends Q71's ◇);
   - Hot-swap compares the kept file texts, with no hash (refines Q67);
   - `RegistryType.acceptsParent` checks Behavior parents at load (extends Q57);
   - under `UnknownType.skip` an unknown Custom component or kind is dropped with its subtree (details Q58);
   - missing assets fail a game's load.
-- [X] T046 Update `docs/project-plan.md` and `docs/phases.md` in one commit (phases.md sync rule):
+- [X] T046 Update `dev-docs/project-plan.md` and `dev-docs/phases.md` in one commit (phases.md sync rule):
   - §6.2: the API as built (`PyroScene.load`'s parameters, `find` and `findAll` path rules, `UnknownType`), the loading order no longer ◇ proposed, that `onReloaded` runs before the new Nodes' `onLoad`s, and the stale-reference mechanism of T045;
   - §10: `AssetSource` as built (two methods, bundle default, no prefix);
   - §14 and phases.md: #8's estimate **as the author sets it** (plan.md suggests 4 → ~5; ask before writing numbers);
@@ -459,7 +459,7 @@ Registry and `rootBundle`
   - `PyroScene` overrides no `update` or `render`;
   - `pyro_generator` still doesn't depend on `pyro_runtime`.
 
-  Note in `docs/ARCHITECTURE.md`'s Runtime section what was verified (data contract change, constitution workflow rule).
+  Note in `dev-docs/ARCHITECTURE.md`'s Runtime section what was verified (data contract change, constitution workflow rule).
 
 ---
 

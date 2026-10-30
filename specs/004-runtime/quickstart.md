@@ -55,7 +55,7 @@ It prints the median (p95) of 20 runs on the 1,000-Node benchmark Scene for a lo
 decoding, a Hot-swap check that finds nothing changed, and a rebuild, plus the longest
 synchronous pause during a load and during a rebuild. Pass: under 50 ms, 5 ms and 100 ms (SC-004).
 The pause has no limit yet: record it, and set the limit from it (spec Clarifications). `flutter test` runs JIT with asserts, so passing here bounds a profile build.
-Record the table in `docs/ARCHITECTURE.md` under a new "Runtime" section.
+Record the table in `dev-docs/ARCHITECTURE.md` under a new "Runtime" section.
 
 ## 5. Hot-swap in a running game and check release builds (reference Mac)
 
@@ -84,7 +84,7 @@ strings build/macos/Build/Products/Release/pyro_hot_swap.app/Contents/Frameworks
 ```
 
 `couldn't Hot-swap` is in the debug error that only the Hot-swap path prints (research R14).
-Record the result in `docs/ARCHITECTURE.md` with §4's table.
+Record the result in `dev-docs/ARCHITECTURE.md` with §4's table.
 
 ## 6. See an error the way a developer would
 

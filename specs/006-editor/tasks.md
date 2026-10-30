@@ -149,7 +149,7 @@
 - [X] T045 [US7] Run quickstart.md §2 (the capstone): build a scene from scratch in `example/` with the panels only (entity, sprite, hitbox, `Spin` with edited fields), save, `git diff` shows the canonical form, close/reopen identical, second save is a no-op, the contract tests pass on the new scene, and the Phase 3 loop hot-swaps it via `bin/play.dart`.
 - [X] T046 [US7] Run quickstart.md §3 (the Missing drill) and §4 (save gates + recovery drills: changed-on-disk refusal with force, recovery *Restore* after a kill, repair report on a hand-broken tree).
 - [X] T047 [US7] Run quickstart.md §5 (profile mode): record ≤ 16 ms frames for gizmo drag, number scrub, hierarchy selection and inspector typing on a 1,000-Node scene, and the ≤ 200 ms image-change refresh with only dependents rebuilt.
-- [X] T048 [US7] Record the results in `docs/ARCHITECTURE.md` (numbers, findings, workarounds) and tick Phase 4 in `docs/phases.md` (status line and counts; §14 only if scope/estimates moved) — **in the same change** (FR-040/041).
+- [X] T048 [US7] Record the results in `dev-docs/ARCHITECTURE.md` (numbers, findings, workarounds) and tick Phase 4 in `dev-docs/phases.md` (status line and counts; §14 only if scope/estimates moved) — **in the same change** (FR-040/041).
 
 ---
 
